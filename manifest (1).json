@@ -1,0 +1,154 @@
+{
+  "id": "community.m3u.catalog",
+  "version": "1.0.15",
+  "name": "Iracemaflix",
+  "description": "Filmes, séries e TV organizados pelas categorias reais da playlist.",
+  "logo": "https://www.stremio.com/website/stremio-logo-small.png",
+  "resources": [
+    "catalog",
+    "meta",
+    "stream"
+  ],
+  "types": [
+    "movie",
+    "series",
+    "tv"
+  ],
+  "idPrefixes": [
+    "m3u-",
+    "m3u-series-"
+  ],
+  "catalogs": [
+    {
+      "type": "movie",
+      "id": "m3u-movies",
+      "name": "Iracemaflix • Filmes",
+      "extra": [
+        {
+          "name": "genre",
+          "isRequired": false,
+          "options": [
+            "ANIMACAO/INFANTIL",
+            "ANIMES",
+            "AÇAO",
+            "CINEMA",
+            "COMEDIA",
+            "DC",
+            "DRAMA",
+            "ELEVEN SPORTS",
+            "ESPECIAL DE NATAL",
+            "ESTADUAIS",
+            "FAROESTE",
+            "FICCAO/FANTASIA",
+            "GUERRA",
+            "LANCAMENTOS",
+            "LANÇAMENTOS LEGENDADOS",
+            "LOLLAPALOOZA BRASIL 2025",
+            "MARVEL",
+            "NACIONAIS",
+            "ROMANCE",
+            "SERIES 24H POR TEMPORADA",
+            "SPORTS WORLD",
+            "STAND-UP",
+            "SUSPENSE",
+            "TERROR",
+            "THE TOWN 2025"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "series",
+      "id": "m3u-series",
+      "name": "Iracemaflix • Séries",
+      "extra": [
+        {
+          "name": "genre",
+          "isRequired": false,
+          "options": [
+            "AMAZON PRIME VIDEO",
+            "APPLETV+",
+            "BRASIL PARALELO",
+            "CRUNCHYROLL",
+            "DESENHOS",
+            "DISCOVERY+",
+            "DISNEY+",
+            "DORAMA",
+            "FILMES E SERIES",
+            "GLOBOPLAY",
+            "HBO MAX",
+            "NETFLIX",
+            "NOVELAS",
+            "PARAMOUNT+",
+            "SHORTS",
+            "STAR+"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "tv",
+      "id": "m3u-tv",
+      "name": "Iracemaflix • TV ao vivo",
+      "extra": [
+        {
+          "name": "genre",
+          "isRequired": false,
+          "options": [
+            "24 HORAS PARA RELAXAR",
+            "A FAZENDA 18",
+            "ABERTOS",
+            "ANIMES 24 HORAS",
+            "BAND",
+            "BRASILEIRAO",
+            "CINE SKY",
+            "CLIPES 24 HORAS",
+            "DAZN",
+            "DESENHOS 24 HORAS",
+            "DISCOVERY",
+            "DOCUMENTARIOS",
+            "ESPN",
+            "ESPORTES",
+            "FILMES E SERIES",
+            "FILMES 24 HORAS",
+            "GLOBO CAPITAIS",
+            "GLOBO INTERIOR",
+            "HBO",
+            "H265/HEVC",
+            "INFANTIS",
+            "JOGOS DO DIA",
+            "LEGENDADOS",
+            "MAX",
+            "MUSICAS",
+            "NBA PAY-PER-VIEW",
+            "NFL GAMEPASS",
+            "NOTICIAS",
+            "NOTICIAS INTERNACIONAIS",
+            "PAY-PER-VIEW",
+            "PREMIERE",
+            "PROGRAMAS DE TV 24 HORAS",
+            "RECORD TV",
+            "REELSHORT 24 HORAS",
+            "RELIGIOSOS",
+            "SBT",
+            "SERIES 24 HORAS",
+            "SERIES TV",
+            "SHOWS",
+            "SHOWS INTERNACIONAIS",
+            "SHOWS NACIONAIS",
+            "SPORTV",
+            "STAND-UP 24 HORAS",
+            "TELECINE",
+            "UHD 4K",
+            "VARIEDADES",
+            "YOUTUBE 24 HORAS"
+          ]
+        }
+      ]
+    }
+  ],
+  "behaviorHints": {
+    "configurable": false,
+    "configurationRequired": false
+  }
+}
