@@ -1,9 +1,9 @@
 {
-  "id": "community.m3u.catalog",
-  "version": "1.0.15",
+  "id": "Iracemaflix",
+  "version": "1.0.0",
   "name": "Iracemaflix",
-  "description": "Filmes, séries e TV organizados pelas categorias reais da playlist.",
-  "logo": "https://www.stremio.com/website/stremio-logo-small.png",
+  "description": "Filmes, séries e TV",
+  "logo": "https://files.catbox.moe/628bx9.png",
   "resources": [
     "catalog",
     "meta",
