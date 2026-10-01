@@ -291,7 +291,7 @@ function streamFor(entry) {
 
 const baseManifest = require('./manifest.json');
 const manifest = SAFE_MODE
-  ? { ...baseManifest, id: 'community.m3u.catalog', name: 'Iracemaflix', description: 'Filmes, séries e TV sem categorias ou conteúdo adulto.' }
+  ? { ...baseManifest, id: 'community.m3u.catalog', name: 'Iracemaflix', description: 'Filmes, séries e TV' }
   : { ...baseManifest, id: 'community.m3u.catalog.full', name: 'Iracemaflix • Completo', description: 'Playlist completa com filmes, séries e TV.' };
 
 const builder = new addonBuilder(manifest);
