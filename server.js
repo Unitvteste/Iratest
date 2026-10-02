@@ -9,6 +9,18 @@ const readline = require('readline');
 const { Readable } = require('stream');
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
 
+const { fetch: undiciFetch, Agent } = require('undici');
+
+const upstreamAgent = new Agent({
+  connectTimeout: 60000,
+  headersTimeout: 120000,
+  bodyTimeout: 300000,
+  keepAliveTimeout: 10000,
+  keepAliveMaxTimeout: 30000,
+  autoSelectFamily: true,
+  autoSelectFamilyAttemptTimeout: 250
+});
+
 // Prioriza IPv4.
 // Alguns provedores anunciam IPv6, mas não aceitam conexões
 // corretamente a partir de determinados ambientes.
@@ -354,23 +366,31 @@ async function downloadM3U(url) {
   }, M3U_TIMEOUT_MS);
 
   try {
-    console.log(
-      `[M3U] Tentando baixar: ${url}`
-    );
+    console.log(`[M3U] Conectando: ${url}`);
 
-    const response = await fetch(url, {
+    const response = await undiciFetch(url, {
       method: 'GET',
+
+      dispatcher: upstreamAgent,
+
       redirect: 'follow',
+
       signal: controller.signal,
 
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36',
-        Accept:
+
+        'Accept':
           'application/x-mpegURL, application/vnd.apple.mpegurl, text/plain, */*',
-        Connection: 'keep-alive'
+
+        'Connection': 'keep-alive'
       }
     });
+
+    console.log(
+      `[M3U] Resposta recebida: HTTP ${response.status}`
+    );
 
     if (!response.ok) {
       throw new Error(
@@ -389,7 +409,7 @@ async function downloadM3U(url) {
   } catch (error) {
     if (error.name === 'AbortError') {
       throw new Error(
-        `tempo esgotado após ${M3U_TIMEOUT_MS} ms`
+        `tempo total esgotado após ${M3U_TIMEOUT_MS} ms`
       );
     }
 
