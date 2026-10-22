@@ -248,6 +248,7 @@ const LIVE_EVENTS_CATALOG_ID = 'iracematv_events';
 const UPCOMING_EVENTS_CATALOG_ID = 'iracematv_upcoming';
 const ALL_EVENTS_CATALOG_ID = 'iracematv_all_events';
 const EMBEDTV_API_BASE = (process.env.EMBEDTV_API_BASE || 'https://embedtv.cc').replace(/\/$/, '');
+const EMBEDTV_SOURCE_REFERER = process.env.EMBEDTV_SOURCE_REFERER || 'https://embedtv.cc/';
 const EMBEDTV_CHANNEL_CATALOG_ID = 'iracematv_embedtv';
 const EMBEDTV_EVENTS_CATALOG_ID = 'iracematv_agenda';
 const EMBEDTV_CHANNEL_PREFIX = 'iracematv_embedtv_channel_';
@@ -327,7 +328,16 @@ function isLikelyInvalidPlaybackUrl(value) {
   return typeof value === 'string' && /\/test\/master\.m3u8(?:$|[?#])/i.test(value);
 }
 function isEmbedTvHlsSourceUrl(value) {
-  return typeof value === 'string' && /^https?:\/\//i.test(value) && !isLikelyInvalidPlaybackUrl(value) && (/\.(?:m3u8|mpd|mp4|m4v)(?:$|[?#])/i.test(value) || /\/error\.txt(?:$|[?#])/i.test(value));
+  // O EmbedTV publica um master.m3u8 de demonstração que responde 200,
+  // mas aponta para uma playlist inexistente. A fonte real é entregue como
+  // /error.txt e contém a playlist HLS válida.
+  return typeof value === 'string' && /^https?:\/\//i.test(value) && /\/error\.txt(?:$|[?#])/i.test(value) && !isLikelyInvalidPlaybackUrl(value);
+}
+function extractEmbedTvErrorSources(html) {
+  const sourceMatches = String(html || '').replace(/\\\//g, '/').matchAll(/(?:const|let|var)\s+src\s*=\s*["']([^"']+)/gi);
+  return [...new Set([...sourceMatches]
+    .map((match) => match[1])
+    .filter((value) => isEmbedTvHlsSourceUrl(value)))];
 }
 function isDirectPlaybackUrl(value) {
   return typeof value === 'string' && /^https?:\/\//i.test(value) && !isLikelyInvalidPlaybackUrl(value) && !/[\s<>"']/u.test(value) && /\.(?:m3u8|mpd|mp4|m4v|ts)(?:$|[?#])/i.test(value);
@@ -1074,7 +1084,7 @@ function youtubeVideoId(value) {
   } catch { return null; }
 }
 
-async function streams(type, id) {
+async function streams(type, id, refreshedEmbedTv = false) {
   const item = await getItem(type, id);
   if (!item) return { streams: [] };
   const key = String(item.id || item.slug || item.name || item.title || '');
@@ -1093,8 +1103,7 @@ async function streams(type, id) {
       sourceLog('embedtv-stream-selected', { id, channelId: item.id, embedUrls: uniqueEmbeds, mode: 'resolve-direct-source' });
       try {
         const page = await withTimeout(fetchPublicText(uniqueEmbeds[0], uniqueEmbeds[0]), 8000, null);
-        const sourceMatch = page?.text?.match(/const\s+src\s*=\s*[\"']([^\"']+)/i);
-        const internalSrc = sourceMatch?.[1] || null;
+        const internalSrc = extractEmbedTvErrorSources(page?.text)[0] || null;
         sourceLog('embedtv-page-source', {
           id,
           embedUrl: uniqueEmbeds[0],
@@ -1103,7 +1112,13 @@ async function streams(type, id) {
           sourceType: internalSrc?.match(/\.(?:m3u8|mpd|mp4|m4v|txt)(?:$|[?#])/i)?.[0]?.replace(/^\./, '') || null
         });
         if (isEmbedTvHlsSourceUrl(internalSrc)) {
-          const request = { 'User-Agent': DEFAULT_UA, Referer: uniqueEmbeds[0] };
+          const declaredReferer = page?.text?.match(/(?:const|let|var)\s+referer\s*=\s*["']([^"']+)/i)?.[1];
+          const request = {
+            'User-Agent': DEFAULT_UA,
+            Accept: 'application/vnd.apple.mpegurl, application/x-mpegURL, */*',
+            Referer: declaredReferer || EMBEDTV_SOURCE_REFERER,
+            'Cache-Control': 'no-cache'
+          };
           const origin = originOf(uniqueEmbeds[0]);
           if (origin) request.Origin = origin;
           sourceLog('embedtv-direct-source-selected', { id, embedUrl: uniqueEmbeds[0], internalSrc, mode: 'hls-source' });
@@ -1118,6 +1133,17 @@ async function streams(type, id) {
         sourceLog('embedtv-page-source-error', { id, embedUrl: uniqueEmbeds[0], message: error.message });
       }
       // Páginas de player não são streams reproduzíveis; só fontes diretas são devolvidas.
+    }
+    // Os subdomínios hash do EmbedTV mudam e os antigos podem responder 404.
+    // Em caso de falha ou de página sem /error.txt, invalida o cache e tenta
+    // uma vez com o host recém-publicado pela API.
+    if (!refreshedEmbedTv) {
+      cache.embedTv.channels = { at: 0, data: null };
+      const refreshedItem = await getItem(type, id).catch(() => null);
+      if (refreshedItem?.url && refreshedItem.url !== item.url) {
+        sourceLog('embedtv-cache-refreshed', { id, previousUrl: item.url, currentUrl: refreshedItem.url });
+        return streams(type, id, true);
+      }
     }
   }
   const youtube = [...new Set(candidates.map((candidate) => youtubeVideoId(candidate.url)).filter(Boolean))];
@@ -1138,10 +1164,15 @@ async function streams(type, id) {
       for (const { url: playerUrl, candidate } of playerPages) {
         try {
           const page = await withTimeout(fetchPublicText(playerUrl, playerUrl), PAGE_TIMEOUT_MS + 1000, null);
-          const sourceMatch = page?.text?.match(/const\s+src\s*=\s*["']([^"']+)/i);
-          const internalSrc = sourceMatch?.[1] || null;
+          const internalSrc = extractEmbedTvErrorSources(page?.text)[0] || null;
           if (!isEmbedTvHlsSourceUrl(internalSrc)) continue;
-          const request = { 'User-Agent': DEFAULT_UA, Referer: playerUrl };
+          const declaredReferer = page?.text?.match(/(?:const|let|var)\s+referer\s*=\s*["']([^"']+)/i)?.[1];
+          const request = {
+            'User-Agent': DEFAULT_UA,
+            Accept: 'application/vnd.apple.mpegurl, application/x-mpegURL, */*',
+            Referer: declaredReferer || EMBEDTV_SOURCE_REFERER,
+            'Cache-Control': 'no-cache'
+          };
           const origin = originOf(playerUrl);
           if (origin) request.Origin = origin;
           if (!directStreams.has(internalSrc)) directStreams.set(internalSrc, {
