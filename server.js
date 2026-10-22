@@ -5747,57 +5747,482 @@ app.get('/', (_req, res) => {
   res.end(`<!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05070d">
 <title>Iracemaflix · Servidores</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
-:root{color-scheme:dark;--bg:#070b14;--panel:#101827;--line:#26334b;--text:#f7f9ff;--muted:#9da9bd;--accent:#348cfe;--green:#35d07f}
-*{box-sizing:border-box}
-body{margin:0;min-height:100vh;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:radial-gradient(circle at 15% 0%,#1a2237 0,var(--bg) 42%);color:var(--text)}
-main{width:min(1080px,calc(100% - 32px));margin:auto;padding:28px 0 60px}
-nav{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:8px 0 54px}.brand{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:.2px}.mark{width:34px;height:34px;display:grid;place-items:center;background:var(--accent);clip-path:polygon(0 0,100% 0,100% 72%,72% 100%,0 100%);font-weight:900}.nav-note{color:var(--muted);font-size:.86rem}
-.eyebrow{color:#6eacff;text-transform:uppercase;letter-spacing:.18em;font-size:.72rem;font-weight:800;margin-bottom:18px}h1{font-size:clamp(2.5rem,6vw,5rem);line-height:.96;letter-spacing:-.07em;max-width:800px;margin:0 0 22px}h1 span{color:var(--accent)}p{color:var(--muted);line-height:1.65;max-width:680px;font-size:1.02rem}.hero{padding:28px 0 48px}.site-highlight{margin-top:28px}.site-button{display:inline-flex;align-items:center;gap:12px;min-height:56px;padding:0 24px;border-radius:8px;background:var(--accent);color:#fff;text-decoration:none;font-size:1rem;font-weight:850;box-shadow:0 14px 30px #348cfe40;transition:transform .2s ease,filter .2s ease}.site-button:hover{transform:translateY(-2px);filter:brightness(1.12)}.manifest-heading{margin-top:60px}.manifest-heading .eyebrow{margin-bottom:10px}.manifest-heading h2{margin:0;color:var(--text);font-size:clamp(1.55rem,3vw,2.15rem)}
-.servers{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:30px}.server-card{display:flex;flex-direction:column;min-height:250px;padding:22px;background:linear-gradient(145deg,#141d2e,#0c1220);border:1px solid var(--line);border-radius:12px;transition:transform .2s ease,border-color .2s ease}.server-card:hover{transform:translateY(-3px);border-color:#4671a8}.server-card.primary{border-color:#315b8f}.server-top{display:flex;align-items:center;justify-content:space-between;gap:12px}.server-kind{color:#6eacff;text-transform:uppercase;letter-spacing:.13em;font-size:.68rem;font-weight:800}.server-card h2{margin:18px 0 10px;font-size:1.15rem}.server-url{color:#aebbd0;font-size:.78rem;line-height:1.45;word-break:break-all}.status{display:flex;align-items:center;gap:8px;margin-top:18px;color:#bcefd1;font-size:.82rem;font-weight:700}.dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px #35d07f1c,0 0 14px #35d07f99}.server-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:auto;padding-top:22px}.button{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 14px;border-radius:7px;text-decoration:none;font-size:.86rem;font-weight:800}.button.main{background:var(--accent);color:#fff}.button.alt{color:#dce3f2;border:1px solid #3a4a64}.button:hover{filter:brightness(1.12)}button.button{border:0;font-family:inherit;cursor:pointer}.copy-button.copied{color:#bcefd1;border-color:#35d07f}
-.note{margin-top:22px;padding:15px 17px;border:1px solid var(--line);border-radius:9px;color:var(--muted);font-size:.88rem}.note strong{color:#e5ebf7}footer{border-top:1px solid var(--line);margin-top:60px;padding-top:22px;color:#748198;font-size:.82rem;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
-@media(max-width:780px){main{width:min(100% - 26px,560px)}nav{padding-bottom:32px}.servers{grid-template-columns:1fr}.server-card{min-height:220px}h1{font-size:3.2rem}.nav-note{display:none}}
+:root{color-scheme:dark;--bg:#05070d;--line:#1f2b44;--text:#f4f7ff;--muted:#8d9ab3;--a:#348cfe;--b:#8a5cff;--c:#22e3c4;--ok:#35d07f}
+/* Escala fluida: celular 14px, notebook ~17px, TV 4K até 28px */
+html{font-size:clamp(14px,.55vw + 11.5px,28px);scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-family:Manrope,system-ui,sans-serif;overflow-x:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+#fx{position:fixed;inset:0;width:100%;height:100%;z-index:0}
+.orb{position:fixed;border-radius:50%;filter:blur(90px);opacity:.33;z-index:0;pointer-events:none;animation:drift 18s ease-in-out infinite alternate}
+.o1{width:30rem;height:30rem;background:var(--a);top:-9rem;left:-8rem}
+.o2{width:26rem;height:26rem;background:var(--b);bottom:-8rem;right:-7rem;animation-delay:-6s}
+.o3{width:18rem;height:18rem;background:var(--c);top:45%;left:55%;opacity:.13;animation-delay:-11s}
+@keyframes drift{to{transform:translate(90px,60px) scale(1.2)}}
+#glow{position:fixed;width:32rem;height:32rem;margin:-16rem 0 0 -16rem;border-radius:50%;background:radial-gradient(circle,#348cfe26,transparent 65%);z-index:0;pointer-events:none;left:50%;top:30%}
+.grain{position:fixed;inset:-50%;z-index:50;pointer-events:none;opacity:.05;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");animation:grain 1s steps(6) infinite}
+@keyframes grain{20%{transform:translate(-3%,2%)}40%{transform:translate(2%,-3%)}60%{transform:translate(-2%,-1%)}80%{transform:translate(3%,3%)}}
+#bar{position:fixed;top:0;left:0;height:3px;width:100%;transform:scaleX(0);transform-origin:left;background:linear-gradient(90deg,var(--a),var(--c),var(--b));z-index:60}
+main{position:relative;z-index:1;width:min(78rem,calc(100% - 2rem));margin:auto;padding:1.4rem 0 4rem}
+nav{display:flex;align-items:center;justify-content:space-between;padding:.4rem 0 2rem}
+.brand{display:flex;align-items:center;gap:.75rem;font:700 1rem Unbounded,sans-serif;letter-spacing:.04em}
+.mark{width:2.4rem;height:2.4rem;display:grid;place-items:center;background:linear-gradient(135deg,var(--a),var(--b));clip-path:polygon(0 0,100% 0,100% 70%,70% 100%,0 100%);animation:pulse 3s ease-in-out infinite}
+@keyframes pulse{50%{filter:brightness(1.35) drop-shadow(0 0 10px var(--a))}}
+.live{display:flex;align-items:center;gap:.5rem;color:var(--muted);font-size:.85rem;font-weight:600}
+.live i,.st i{width:.55rem;height:.55rem;border-radius:50%;background:var(--ok);animation:ping 1.8s infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 #35d07f90}100%{box-shadow:0 0 0 .8rem #35d07f00}}
+/* HERO */
+.hero{position:relative;display:grid;grid-template-columns:1fr;align-items:center;min-height:min(30rem,64vh);padding:2.5rem 0 3rem}
+h1{font:900 clamp(2.4rem,5.2vw,5.6rem)/1 Unbounded,sans-serif;letter-spacing:-.05em;margin:0 0 1.2rem}
+h1 .w{display:inline-block;opacity:0;transform:translateY(60%) rotate(4deg);animation:word .9s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:calc(var(--i)*.12s + .1s)}
+@keyframes word{to{opacity:1;transform:none}}
+.grad{background:linear-gradient(100deg,var(--a),var(--c),var(--b),var(--a));background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:word .9s forwards,flow 6s linear infinite}
+@keyframes flow{to{background-position:300% 0}}
+.sub{color:var(--muted);line-height:1.7;max-width:34rem;font-size:1.1rem;margin:0}
+.type{border-right:2px solid var(--c);padding-right:4px;color:var(--text);animation:caret .8s steps(1) infinite}
+@keyframes caret{50%{border-color:transparent}}
+.cta{margin-top:2rem;display:flex;gap:.8rem;flex-wrap:wrap}
+.big{position:relative;display:inline-flex;align-items:center;gap:.7rem;min-height:3.4rem;padding:0 1.8rem;border-radius:.8rem;color:#fff;font-weight:800;font-size:1.05rem;text-decoration:none;background:linear-gradient(120deg,var(--a),var(--b));overflow:hidden;transition:transform .25s,box-shadow .25s}
+.big::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(100deg,transparent,#ffffff55,transparent);transform:skewX(-20deg);animation:sheen 3.2s infinite}
+@keyframes sheen{60%,100%{left:130%}}
+.big:hover{transform:translateY(-3px) scale(1.03);box-shadow:0 1rem 2.4rem #348cfe55}
+.ghost{background:transparent;border:1px solid #33446a}
+.ghost::after{display:none}
+.stack{position:relative;height:min(30rem,60vw);perspective:1100px;--rx:0deg;--ry:0deg}
+.fp{position:absolute;width:11.5rem;aspect-ratio:2/3;border-radius:1rem;overflow:hidden;box-shadow:0 1.5rem 3rem #000a;border:1px solid #ffffff22;left:50%;top:50%;transform:translate(-50%,-50%) translateX(calc(var(--x)*1rem)) rotateZ(calc(var(--r)*1deg)) rotateY(var(--ry)) rotateX(var(--rx));animation:fl 6s ease-in-out infinite;animation-delay:calc(var(--i)*-1.2s);transition:transform .2s}
+@keyframes fl{50%{margin-top:-1.1rem}}
+/* PÔSTERES */
+.pst{position:relative;display:flex;flex-direction:column;justify-content:flex-end;padding:.8rem;overflow:hidden;background-size:cover}
+.pst img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.pst b{position:absolute;top:.5rem;right:.8rem;font:900 3.2rem/1 Unbounded,sans-serif;opacity:.22}
+.pst span{position:relative;font:700 .8rem/1.2 Unbounded,sans-serif;text-shadow:0 2px 8px #000}
+.pst.has b,.pst.has span{display:none}
+.pst.has::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 60%,#000a)}
+.reel{margin:3rem -1rem 0;overflow:hidden;border-block:1px solid var(--line);padding:.9rem 0;mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
+.track{display:flex;gap:2.6rem;width:max-content;animation:scroll 28s linear infinite;font:500 .85rem Unbounded,sans-serif;color:#5d6b86;white-space:nowrap}
+.track span:nth-child(3n){color:var(--a)}
+@keyframes scroll{to{transform:translateX(-50%)}}
+.posters{margin:1.6rem -1rem 0;overflow:hidden;mask-image:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent)}
+.prow{display:flex;gap:.9rem;width:max-content;margin-bottom:.9rem;animation:scroll 70s linear infinite}
+.prow.rev{animation-direction:reverse;animation-duration:85s}
+.posters:hover .prow{animation-play-state:paused}
+.prow .pst{flex:none;width:8.4rem;aspect-ratio:2/3;border-radius:.8rem;border:1px solid #ffffff18;transition:transform .3s}
+.prow .pst:hover{transform:translateY(-.5rem) scale(1.07)}
+/* SEÇÕES */
+.sec{margin-top:4.5rem}
+.sec>h2{font:700 clamp(1.4rem,2.6vw,2.2rem) Unbounded,sans-serif;margin:0 0 .4rem;letter-spacing:-.03em}
+.sec>p{margin:0;color:var(--muted)}
+.servers{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,19rem),1fr));gap:1.2rem;margin-top:1.8rem;perspective:1000px}
+.card{position:relative;display:flex;flex-direction:column;min-height:18rem;padding:2px;border-radius:1.2rem;background:conic-gradient(from var(--ang,0deg),transparent 0 60%,var(--a),var(--c),transparent);animation:spin 5s linear infinite,up .9s backwards;transition:transform .15s ease-out}
+@property --ang{syntax:"<angle>";inherits:false;initial-value:0deg}
+@keyframes spin{to{--ang:360deg}}
+.card:nth-child(2){animation-duration:7s,.9s}.card:nth-child(3){animation-duration:9s,.9s}
+.in{--mx:50%;--my:50%;flex:1;display:flex;flex-direction:column;padding:1.5rem;border-radius:1.1rem;background:radial-gradient(260px circle at var(--mx) var(--my),#348cfe22,transparent 60%),#0b1120}
+.kind{color:var(--c);font-size:.8rem;font-weight:800}
+.card:first-child .kind::after{content:"Recomendado";margin-left:.6rem;padding:.2rem .55rem;border-radius:99px;background:#22e3c41f;border:1px solid #22e3c455;font-size:.68rem}
+.in h3{font:700 1.35rem Unbounded,sans-serif;margin:.9rem 0 .6rem;letter-spacing:-.03em}
+.url{color:#9fb0cc;font-size:.78rem;line-height:1.5;word-break:break-all}
+.st{display:flex;align-items:center;gap:.6rem;margin-top:1rem;color:#bcefd1;font-size:.85rem;font-weight:700}
+.bars{display:flex;gap:3px;align-items:flex-end;height:.9rem;margin-left:auto}
+.bars b{width:3px;background:var(--ok);border-radius:2px;animation:eq 1.1s ease-in-out infinite}
+.bars b:nth-child(2){animation-delay:.2s}.bars b:nth-child(3){animation-delay:.4s}.bars b:nth-child(4){animation-delay:.6s}
+@keyframes eq{0%,100%{height:30%}50%{height:100%}}
+.act{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:auto;padding-top:1.4rem}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:2.8rem;padding:0 1.1rem;border-radius:.6rem;font:800 .9rem Manrope,sans-serif;text-decoration:none;color:#dfe7f7;border:1px solid #33446a;background:transparent;cursor:pointer;transition:transform .2s,border-color .2s}
+.btn:hover{transform:translateY(-2px);border-color:var(--a)}
+.btn.main{background:var(--a);border-color:var(--a);color:#fff}
+.btn.copied{color:#bcefd1;border-color:var(--ok)}
+:focus-visible{outline:3px solid var(--c);outline-offset:3px;border-radius:.5rem}
+.steps{position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;margin-top:2rem}
+.steps::before,.steps::after{content:"";position:absolute;top:1.7rem;left:8%;height:2px;width:84%;background:var(--line)}
+.steps::after{background:linear-gradient(90deg,var(--a),var(--c));transform:scaleX(0);transform-origin:left;transition:transform 2.2s ease}
+.steps.on::after{transform:scaleX(1)}
+.step{position:relative;z-index:1;text-align:center;padding:0 .5rem}
+.step i{display:grid;place-items:center;width:3.4rem;height:3.4rem;margin:0 auto .9rem;border-radius:50%;background:#0b1120;border:2px solid var(--line);font:700 1rem Unbounded,sans-serif;font-style:normal;transition:border-color .6s,box-shadow .6s}
+.steps.on .step i{border-color:var(--a);box-shadow:0 0 22px #348cfe66}
+.step:nth-child(2) i{transition-delay:.7s}.step:nth-child(3) i{transition-delay:1.4s}
+.step h4{margin:0 0 .3rem}.step p{margin:0;color:var(--muted);font-size:.9rem;line-height:1.55}
+.tabs{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:2rem}
+.tab{padding:.7rem 1.2rem;border-radius:99px;border:1px solid #33446a;background:transparent;color:var(--muted);font:700 .9rem Manrope,sans-serif;cursor:pointer;transition:all .25s}
+.tab[aria-selected=true]{background:var(--a);border-color:var(--a);color:#fff;box-shadow:0 .5rem 1.5rem #348cfe44}
+.panel{margin-top:.9rem;padding:1.3rem;border:1px solid var(--line);border-radius:1rem;background:#0b112099;color:var(--muted);line-height:1.7;animation:up .5s both}
+.panel[hidden]{display:none}.panel strong{color:var(--text)}
+details{border:1px solid var(--line);border-radius:.8rem;margin-top:.7rem;background:#0b112080;overflow:hidden}
+summary{cursor:pointer;padding:1.1rem 1.2rem;font-weight:700;list-style:none;display:flex;justify-content:space-between;gap:1rem}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";color:var(--c);font-size:1.4rem;line-height:1;transition:transform .3s}
+details[open] summary::after{transform:rotate(45deg)}
+details p{margin:0;padding:0 1.2rem 1.1rem;color:var(--muted);line-height:1.65;animation:up .4s both}
+.note{margin-top:1.6rem;padding:1.1rem 1.2rem;border:1px solid var(--line);border-radius:.9rem;background:#0b112080;color:var(--muted);font-size:.92rem;line-height:1.6}
+.note strong{color:var(--text)}
+dialog{border:1px solid var(--line);border-radius:1.2rem;background:#0b1120;color:var(--text);padding:1.6rem;text-align:center;max-width:20rem}
+dialog::backdrop{background:#02040acc;backdrop-filter:blur(6px)}
+#qrbox{background:#fff;padding:.9rem;border-radius:.8rem;display:inline-block;margin:.9rem 0}
+footer{margin-top:3.5rem;padding-top:1.4rem;border-top:1px solid var(--line);color:#667590;font-size:.85rem;display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.rv{opacity:0;transform:translateY(24px);animation:up .9s cubic-bezier(.2,.8,.2,1) forwards}
+.rv:nth-child(2){animation-delay:.2s}.rv:nth-child(3){animation-delay:.4s}
+@keyframes up{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+.chips{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1.6rem}
+.chip{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .95rem;border-radius:99px;border:1px solid #33446a;background:#0b112099;font-weight:800;font-size:.82rem}
+.chip i{width:.45rem;height:.45rem;border-radius:50%;background:var(--c);animation:ping 1.8s infinite}
+.chip.k{border-color:#35d07f99;color:#bcefd1;background:#35d07f14;animation:glowc 3s ease-in-out infinite}
+@keyframes glowc{50%{box-shadow:0 0 20px #35d07f77}}
+.feats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));gap:1rem;margin-top:1.8rem}
+.feat,.tile{opacity:0;transform:translateY(26px);transition:opacity .7s,transform .7s,border-color .3s}
+.feat.v,.tile.v{opacity:1;transform:none}
+.feat{padding:1.4rem;border:1px solid var(--line);border-radius:1.1rem;background:#0b1120cc}
+.feat.v:hover{transform:translateY(-6px);border-color:var(--a)}
+.ic{width:3rem;height:3rem;border-radius:.9rem;display:grid;place-items:center;background:linear-gradient(135deg,#348cfe33,#8a5cff33);font-size:1.4rem;margin-bottom:1rem}
+.feat h3{margin:0 0 .4rem;font:700 1.05rem Unbounded,sans-serif}
+.feat p{margin:0;color:var(--muted);font-size:.9rem;line-height:1.6}
+.shead{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.shead h2{font:700 clamp(1.4rem,2.6vw,2.2rem) Unbounded,sans-serif;margin:0;letter-spacing:-.03em}
+.arr{display:flex;gap:.5rem}.arr .btn{width:2.8rem;padding:0;font-size:1.3rem}
+.rail{display:flex;gap:1rem;overflow-x:auto;scroll-snap-type:x mandatory;padding:1.2rem 1rem 1rem;margin:0 -1rem;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.rail::-webkit-scrollbar{display:none}
+.it{flex:none;width:9.8rem;scroll-snap-align:start;color:inherit;text-decoration:none;transition:transform .3s}
+.it:hover,.it:focus-visible{transform:translateY(-.5rem) scale(1.05)}
+.it .pst{width:100%;aspect-ratio:2/3;border-radius:.8rem;border:1px solid #ffffff18}
+.it strong{display:block;margin-top:.6rem;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it small{color:#f5c451;font-weight:800;font-size:.78rem}
+.tv{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,11.5rem),1fr));gap:.9rem;margin-top:1.8rem}
+.tile{position:relative;overflow:hidden;padding:1.2rem;border:1px solid var(--line);border-radius:1rem;background:linear-gradient(120deg,#0b1120,#141d33,#0b1120);background-size:200% 100%;animation:shim 6s linear infinite}
+@keyframes shim{to{background-position:-200% 0}}
+.tile.v:hover{border-color:var(--c)}
+.tile em{display:inline-flex;align-items:center;gap:.4rem;font-style:normal;font-size:.68rem;font-weight:800;color:#ff6b6b}
+.tile em::before{content:"";width:.45rem;height:.45rem;border-radius:50%;background:#ff4d4d;animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.2}}
+.tile b{display:block;margin-top:.8rem;font-size:1.6rem}
+.tile span{display:block;margin-top:.3rem;font-weight:800}
+.hbg{position:absolute;inset:0 -1rem;z-index:-1;overflow:hidden;border-radius:1.4rem;mask-image:linear-gradient(90deg,transparent 4%,#000 72%)}
+.hbg::after{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(0deg,var(--bg),transparent 45%)}
+.hs{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 1.6s;animation:kb 14s ease-in-out infinite alternate}
+.hs.on{opacity:.8}
+@keyframes kb{to{transform:scale(1.14) translate(-2%,-1%)}}
+.hcap{position:absolute;right:1rem;bottom:.8rem;z-index:2;font:700 .75rem Unbounded,sans-serif;color:#fff;text-shadow:0 2px 8px #000;opacity:.85}
+@media(max-width:900px){.hbg{mask-image:linear-gradient(180deg,#000 25%,transparent)}.hs.on{opacity:.5}}
+.sec>h2::after,.shead h2::after{content:"";display:block;width:3rem;height:3px;margin-top:.5rem;border-radius:3px;background:linear-gradient(90deg,var(--a),var(--c));animation:bar 3s ease-in-out infinite}
+@keyframes bar{50%{width:6rem}}
+.ic,.tile b{animation:bob 3s ease-in-out infinite}
+.tile b{width:max-content}
+@keyframes bob{50%{transform:translateY(-5px) rotate(-5deg)}}
+.it{animation:up .6s backwards;animation-delay:calc(var(--n,0)*.05s)}
+.ev{animation:up .6s backwards}
+.fchip{padding:.6rem 1.1rem;border-radius:99px;border:1px solid #33446a;background:transparent;color:var(--muted);font:700 .85rem Manrope,sans-serif;cursor:pointer;transition:all .25s}
+.fchip[aria-pressed=true]{background:var(--a);border-color:var(--a);color:#fff;box-shadow:0 .5rem 1.5rem #348cfe44}
+.evs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,17rem),1fr));gap:.9rem;color:var(--muted)}
+.ev{padding:1rem 1.1rem;border:1px solid var(--line);border-radius:1rem;background:#0b1120cc;color:var(--text);animation:up .6s backwards;transition:transform .3s,border-color .3s}
+.ev:hover{transform:translateY(-4px);border-color:var(--a)}
+.evh{display:flex;justify-content:space-between;align-items:center;gap:.6rem;margin-bottom:.9rem}
+.bd{display:inline-flex;align-items:center;gap:.4rem;padding:.25rem .7rem;border-radius:99px;font-weight:800;font-size:.75rem;background:#348cfe22;color:#9cc4ff}
+.bd.live{background:#ff4d4d22;color:#ff7b7b}
+.bd.live::before{content:"";width:.45rem;height:.45rem;border-radius:50%;background:#ff4d4d;animation:blink 1.2s infinite}
+.evh small{color:var(--muted);font-size:.75rem;text-align:right}
+.vs{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:.5rem;text-align:center}
+.tm{display:flex;flex-direction:column;align-items:center;gap:.4rem;font-weight:700;font-size:.8rem}
+.tm img{width:2.8rem;height:2.8rem;object-fit:contain}
+.vs b{color:var(--muted)}
+.evtt{font-weight:800;text-align:center;line-height:1.4}
+.fnote{flex-basis:100%;max-width:46rem;color:var(--muted);font-size:.92rem;line-height:1.7}
+.fnote strong{display:block;color:var(--text);font:700 1.05rem Unbounded,sans-serif;margin-bottom:.4rem}
+.tmc{opacity:.65;font-size:.74rem;max-width:26rem}
+/* RESPONSIVO */
+@media(max-width:900px){.hero{grid-template-columns:1fr;min-height:0}.stack{height:19rem;order:-1}.fp{width:8.5rem}nav{padding-bottom:1rem}}
+@media(max-width:640px){.steps{grid-template-columns:1fr}.steps::before,.steps::after{display:none}.step{display:flex;gap:1rem;text-align:left}.step i{margin:0;flex:none}.live span{display:none}.cta .big{width:100%;justify-content:center}.sec{margin-top:3rem}}
+@media(min-width:1800px){main{width:min(92rem,calc(100% - 6rem))}}
+@media(hover:none){.card,.fp{transform:none!important}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}h1 .w{opacity:1;transform:none}.rv,.card{opacity:1;transform:none}}
 </style>
 </head>
 <body>
+<div id="bar"></div>
+<canvas id="fx"></canvas><div class="grain"></div>
+<div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div><div id="glow"></div>
 <main>
-<nav><div class="brand"><div class="mark">▶</div><div>IRACEMAFLIX</div></div><div class="nav-note">Filmes · Séries · Ao Vivo</div></nav>
+<nav><div class="brand"><div class="mark">▶</div>IRACEMAFLIX</div><div class="live"><i></i><span>Servidores online</span></div></nav>
+
 <section class="hero">
-<div class="eyebrow">Seu site de filmes e séries</div>
-<h1>Assista ao que você <span>ama.</span></h1>
-<p>Entre no catálogo do Iracemaflix para assistir filmes, séries e canais ao vivo. Os manifestos para o Stremio ficam organizados separadamente abaixo.</p>
-<div class="site-highlight"><a class="site-button" href="https://iracemaflix.eu.cc/" target="_blank" rel="noreferrer">Abrir site Iracemaflix <span aria-hidden="true">↗</span></a></div>
-<div class="manifest-heading"><div class="eyebrow">Instalação no Stremio</div><h2>Escolha um manifesto</h2></div>
-<div class="servers" aria-label="Servidores do Iracemaflix">
-<article class="server-card primary"><div class="server-top"><div class="server-kind">Servidor primário</div></div><h2>BeamUp</h2><div class="server-url">https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json</div><div class="status"><span class="dot"></span>Estável</div><div class="server-actions"><a class="button main" href="stremio://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json">Adicionar</a><a class="button alt" href="https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json" target="_blank" rel="noreferrer">Abrir</a><button type="button" class="button alt copy-button" data-copy="https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json">Copiar</button></div></article>
-<article class="server-card"><div class="server-top"><div class="server-kind">Servidor secundário</div></div><h2>Manus</h2><div class="server-url">https://iracemaflix-ep6ptyfy.manus.space/manifest.json</div><div class="status"><span class="dot"></span>Estável</div><div class="server-actions"><a class="button main" href="stremio://iracemaflix-ep6ptyfy.manus.space/manifest.json">Adicionar</a><a class="button alt" href="https://iracemaflix-ep6ptyfy.manus.space/manifest.json" target="_blank" rel="noreferrer">Abrir</a><button type="button" class="button alt copy-button" data-copy="https://iracemaflix-ep6ptyfy.manus.space/manifest.json">Copiar</button></div></article>
-<article class="server-card"><div class="server-top"><div class="server-kind">Servidor alternativo</div></div><h2>Domínio próprio</h2><div class="server-url">https://iracemaflix-addon.eu.cc/manifest.json</div><div class="status"><span class="dot"></span>Estável</div><div class="server-actions"><a class="button main" href="stremio://iracemaflix-addon.eu.cc/manifest.json">Adicionar</a><a class="button alt" href="https://iracemaflix-addon.eu.cc/manifest.json" target="_blank" rel="noreferrer">Manifesto</a><button type="button" class="button alt copy-button" data-copy="https://iracemaflix-addon.eu.cc/manifest.json">Copiar</button></div></article>
+<div class="hbg" id="hbg" aria-hidden="true"></div>
+<div>
+<h1><span class="w" style="--i:0">Assista</span> <span class="w" style="--i:1">ao</span> <span class="w" style="--i:2">que</span> <span class="w" style="--i:3">você</span> <span class="w grad" style="--i:4">ama.</span></h1>
+<p class="sub rv">Filmes, séries e canais ao vivo em português. Abra o catálogo para <span class="type" id="typed"></span></p>
+<div class="cta rv"><a class="big" href="https://iracemaflix.eu.cc/" target="_blank" rel="noreferrer">Abrir site Iracemaflix <span aria-hidden="true">↗</span></a><a class="big ghost" href="#servidores">Instalar no Stremio</a></div>
+<div class="chips rv"><span class="chip k">4K UHD</span><span class="chip"><i></i>Dublado</span><span class="chip"><i></i>Ao vivo</span><span class="chip"><i></i>Play rápido</span></div>
 </div>
-<div class="note"><strong>Dica:</strong> a bolinha verde indica o endereço configurado. Se um servidor apresentar erro ao reproduzir, remova o addon antigo e adicione novamente usando outro manifesto.</div>
 </section>
-<footer><span>© ${new Date().getFullYear()} Iracemaflix</span><span>Uma experiência de entretenimento em português</span></footer>
+
+<div class="reel" aria-hidden="true"><div class="track" id="track"></div></div>
+<div class="posters" id="posters" aria-hidden="true"></div>
+
+<section class="sec"><h2>Tudo em um só lugar</h2><p>Catálogo completo, feito para abrir rápido em qualquer tela.</p>
+<div class="feats">
+<div class="feat"><div class="ic">⚡</div><h3>Play rápido</h3><p>Escolha o título e comece a assistir em segundos, sem espera longa.</p></div>
+<div class="feat"><div class="ic">🎞️</div><h3>Qualidade até 4K</h3><p>Imagem em alta definição, com 4K nos títulos que oferecem essa opção.</p></div>
+<div class="feat"><div class="ic">🎙️</div><h3>Dublado em português</h3><p>Filmes, séries e canais com áudio dublado, para assistir sem ler legenda.</p></div>
+<div class="feat"><div class="ic">🎬</div><h3>Filmes e séries</h3><p>Lançamentos, clássicos e maratonas, com novidades chegando toda semana.</p></div>
+<div class="feat"><div class="ic">📡</div><h3>TV ao vivo</h3><p>Canais de notícias, esportes, filmes, infantil e muito mais, 24 horas por dia.</p></div>
+<div class="feat"><div class="ic">📱</div><h3>Em qualquer tela</h3><p>Funciona na TV, no celular, no tablet e no computador com o Stremio.</p></div>
+</div></section>
+
+<section class="sec"><div class="shead"><h2>Filmes em alta</h2><div class="arr"><button type="button" class="btn" data-r="rail-m" data-d="-1" aria-label="Voltar">‹</button><button type="button" class="btn" data-r="rail-m" data-d="1" aria-label="Avançar">›</button></div></div><div class="rail" id="rail-m"></div></section>
+<section class="sec" style="margin-top:1.5rem"><div class="shead"><h2>Séries em alta</h2><div class="arr"><button type="button" class="btn" data-r="rail-s" data-d="-1" aria-label="Voltar">‹</button><button type="button" class="btn" data-r="rail-s" data-d="1" aria-label="Avançar">›</button></div></div><div class="rail" id="rail-s"></div></section>
+
+<section class="sec" style="margin-top:1.5rem"><div class="shead"><h2>Animes</h2><div class="arr"><button type="button" class="btn" data-r="rail-a" data-d="-1" aria-label="Voltar">‹</button><button type="button" class="btn" data-r="rail-a" data-d="1" aria-label="Avançar">›</button></div></div><div class="rail" id="rail-a"></div></section>
+<section class="sec" style="margin-top:1.5rem"><div class="shead"><h2>Doramas</h2><div class="arr"><button type="button" class="btn" data-r="rail-d" data-d="-1" aria-label="Voltar">‹</button><button type="button" class="btn" data-r="rail-d" data-d="1" aria-label="Avançar">›</button></div></div><div class="rail" id="rail-d"></div></section>
+
+<section class="sec"><h2>Eventos do dia</h2><p>Agenda esportiva de hoje, com horários de Brasília.</p>
+<div class="tabs" id="evtabs"></div>
+<div class="evs" id="evgrid" style="margin-top:1.2rem">Carregando agenda...</div></section>
+
+<section class="sec"><h2>TV ao vivo</h2><p>Escolha o tipo de canal e assista agora.</p>
+<div class="tv">
+<div class="tile"><em>AO VIVO</em><b>📰</b><span>Notícias</span></div>
+<div class="tile"><em>AO VIVO</em><b>⚽</b><span>Esportes</span></div>
+<div class="tile"><em>AO VIVO</em><b>🎥</b><span>Filmes e séries</span></div>
+<div class="tile"><em>AO VIVO</em><b>🧸</b><span>Infantil</span></div>
+<div class="tile"><em>AO VIVO</em><b>🌎</b><span>Documentários</span></div>
+<div class="tile"><em>AO VIVO</em><b>🎵</b><span>Música</span></div>
+<div class="tile"><em>AO VIVO</em><b>🎭</b><span>Variedades</span></div>
+<div class="tile"><em>AO VIVO</em><b>🌸</b><span>Animes</span></div>
+<div class="tile"><em>AO VIVO</em><b>💖</b><span>Doramas</span></div>
+<div class="tile"><em>AO VIVO</em><b>📹</b><span>Realitys</span></div>
+</div></section>
+
+<section class="sec" id="servidores"><h2>Instale no Stremio</h2><p>Escolha um manifesto e toque em Adicionar.</p>
+<div class="servers">
+<article class="card"><div class="in"><div class="kind">Servidor primário</div><h3>BeamUp</h3><div class="url">https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json</div><div class="st"><i></i>Estável<div class="bars"><b></b><b></b><b></b><b></b></div></div><div class="act"><a class="btn main" href="stremio://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json">Adicionar</a><a class="btn" href="https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json" target="_blank" rel="noreferrer">Abrir</a><button type="button" class="btn copy" data-copy="https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json">Copiar</button></div></div></article>
+<article class="card"><div class="in"><div class="kind">Servidor secundário</div><h3>Manus</h3><div class="url">https://iracemaflix-ep6ptyfy.manus.space/manifest.json</div><div class="st"><i></i>Estável<div class="bars"><b></b><b></b><b></b><b></b></div></div><div class="act"><a class="btn main" href="stremio://iracemaflix-ep6ptyfy.manus.space/manifest.json">Adicionar</a><a class="btn" href="https://iracemaflix-ep6ptyfy.manus.space/manifest.json" target="_blank" rel="noreferrer">Abrir</a><button type="button" class="btn copy" data-copy="https://iracemaflix-ep6ptyfy.manus.space/manifest.json">Copiar</button></div></div></article>
+<article class="card"><div class="in"><div class="kind">Servidor alternativo</div><h3>Domínio próprio</h3><div class="url">https://iracemaflix-addon.eu.cc/manifest.json</div><div class="st"><i></i>Estável<div class="bars"><b></b><b></b><b></b><b></b></div></div><div class="act"><a class="btn main" href="stremio://iracemaflix-addon.eu.cc/manifest.json">Adicionar</a><a class="btn" href="https://iracemaflix-addon.eu.cc/manifest.json" target="_blank" rel="noreferrer">Manifesto</a><button type="button" class="btn copy" data-copy="https://iracemaflix-addon.eu.cc/manifest.json">Copiar</button></div></div></article>
+</div>
+<div class="note"><strong>Dica:</strong> a bolinha verde indica o endereço configurado. Se um servidor der erro ao reproduzir, remova o addon antigo e adicione de novo usando outro manifesto.</div>
+</section>
+
+<section class="sec"><h2>Como instalar</h2>
+<div class="steps" id="steps">
+<div class="step"><i>1</i><div><h4>Escolha o servidor</h4><p>Comece pelo recomendado.</p></div></div>
+<div class="step"><i>2</i><div><h4>Toque em Adicionar</h4><p>O Stremio abre e pede confirmação.</p></div></div>
+<div class="step"><i>3</i><div><h4>Confirme e assista</h4><p>O catálogo aparece na tela inicial.</p></div></div>
+</div>
+<div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="true">Android</button><button class="tab" role="tab" aria-selected="false">TV</button><button class="tab" role="tab" aria-selected="false">iPhone</button><button class="tab" role="tab" aria-selected="false">PC</button></div>
+<div class="panel"><strong>Android:</strong> toque em Adicionar. Se o Stremio não abrir, use Copiar, abra o app, vá em Addons e cole o link.</div>
+<div class="panel" hidden><strong>TV:</strong> use QR ou Copiar num servidor, abra o Stremio da TV, entre em Addons e cole o link no campo de busca.</div>
+<div class="panel" hidden><strong>iPhone:</strong> toque em Copiar, abra o app Stremio, entre em Addons e cole o link no campo de busca.</div>
+<div class="panel" hidden><strong>PC:</strong> clique em Adicionar com o Stremio instalado. Se nada abrir, copie o link e cole em Addons.</div>
+</section>
+
+<section class="sec"><h2>Dúvidas</h2>
+<details><summary>Não reproduz, e agora?</summary><p>Remova o addon antigo no Stremio e adicione de novo usando outro manifesto da lista.</p></details>
+<details><summary>O botão Adicionar não abre nada</summary><p>Instale o Stremio no aparelho ou use Copiar e cole o link em Addons.</p></details>
+<details><summary>Como instalar na TV?</summary><p>Toque em QR no servidor, aponte a câmera ou copie o link e cole no Stremio da TV.</p></details>
+<details><summary>Dá para navegar com o controle remoto?</summary><p>Sim. As setas do controle movem o foco entre botões e o OK confirma.</p></details>
+</section>
+
+<dialog id="qr"><h3 style="margin:0;font-family:Unbounded,sans-serif" id="qrt">QR</h3><div id="qrbox"></div><p style="margin:0 0 .9rem;color:var(--muted);font-size:.85rem">Aponte a câmera para abrir o manifesto.</p><button class="btn main" id="qrx">Fechar</button></dialog>
+<footer><div class="fnote"><strong>Streaming grátis, fácil, prático e ágil.</strong> O Iracemaflix não armazena nenhum conteúdo: apenas conecta quem quer assistir a quem fornece, reunindo conteúdos disponibilizados por terceiros na internet.</div><span>© <span id="yr"></span> Iracemaflix</span></footer>
 </main>
+
 <script>
-document.querySelectorAll('.copy-button').forEach((button) => {
-  button.addEventListener('click', async () => {
-    const original = button.textContent;
-    try {
-      await navigator.clipboard.writeText(button.dataset.copy);
-      button.textContent = 'Copiado';
-      button.classList.add('copied');
-      setTimeout(() => { button.textContent = original; button.classList.remove('copied'); }, 1600);
-    } catch {
-      button.textContent = 'Selecione o link';
-      setTimeout(() => { button.textContent = original; }, 1600);
-    }
-  });
-});
+/* ============ PÔSTERES: cole aqui as URLs das suas imagens ============
+   img: link direto da imagem (ex.: https://image.tmdb.org/t/p/w342/xxxx.jpg)
+   Se img ficar vazio ou o link falhar, aparece uma capa animada no lugar. */
+var POSTERS=[
+ {t:'Ação',h:215,g:'⚡',img:''},{t:'Aventura',h:160,g:'✦',img:''},
+ {t:'Terror',h:350,g:'☾',img:''},{t:'Comédia',h:40,g:'☺',img:''},
+ {t:'Ficção',h:265,g:'◈',img:''},{t:'Romance',h:320,g:'♥',img:''},
+ {t:'Drama',h:200,g:'❖',img:''},{t:'Animação',h:140,g:'✿',img:''},
+ {t:'Suspense',h:0,g:'◐',img:''},{t:'Fantasia',h:280,g:'✧',img:''}
+];
+/* ====================================================================== */
+
+function mk(p,cls){
+  var d=document.createElement('div');d.className='pst '+(cls||'');
+  d.style.background='linear-gradient(160deg,hsl('+p.h+',80%,38%),hsl('+(p.h+50)+',70%,10%))';
+  d.innerHTML='<b>'+p.g+'</b><span>'+p.t+'</span>';
+  if(p.img){var im=new Image();im.alt=p.t;im.referrerPolicy='no-referrer';
+    im.onload=function(){d.classList.add('has');d.prepend(im)};im.src=p.img}
+  return d}
+function row(list,cls){var r=document.createElement('div');r.className='prow '+cls;list.concat(list).forEach(function(p){r.appendChild(mk(p))});return r}
+var TMDB_KEY='12a263eb78c5a66bf238a09bf48a413b';
+var ps=document.getElementById('posters');
+function build(list){
+  ps.innerHTML='';
+  ps.appendChild(row(list,''));ps.appendChild(row(list.slice().reverse(),'rev'));
+}
+build(POSTERS);
+/* Em alta na semana (TMDB). Se falhar, ficam as capas animadas. */
+fetch('https://api.themoviedb.org/3/trending/all/week?language=pt-BR&api_key='+TMDB_KEY)
+  .then(function(r){return r.json()})
+  .then(function(d){
+    var l=(d.results||[]).filter(function(x){return x.poster_path}).slice(0,20).map(function(x,i){
+      return {t:x.title||x.name,h:(i*37)%360,g:'▶',img:'https://image.tmdb.org/t/p/w342'+x.poster_path}});
+    if(l.length>=6)build(l);
+  }).catch(function(){});
+
+/* Prateleiras de filmes e séries (TMDB) */
+function fill(id,items){
+  var r=document.getElementById(id);r.innerHTML='';
+  items.forEach(function(x,n){
+    var a=document.createElement('a');a.className='it';a.style.setProperty('--n',n);
+    if(x.href){a.href=x.href;a.target='_blank';a.rel='noreferrer'}else a.tabIndex=0;
+    a.appendChild(mk(x));
+    var s=document.createElement('strong');s.textContent=x.t;a.appendChild(s);
+    if(x.r){var m=document.createElement('small');m.textContent='★ '+x.r;a.appendChild(m)}
+    r.appendChild(a)})}
+function shelf(id,type,q){
+  fill(id,POSTERS);
+  fetch('https://api.themoviedb.org/3/'+(q||'trending/'+type+'/week?')+'&language=pt-BR&api_key='+TMDB_KEY)
+    .then(function(r){return r.json()})
+    .then(function(d){
+      var l=(d.results||[]).filter(function(x){return x.poster_path}).slice(0,18).map(function(x,i){
+        return {t:x.title||x.name,h:(i*37)%360,g:'▶',img:'https://image.tmdb.org/t/p/w342'+x.poster_path,
+          href:'https://www.themoviedb.org/'+type+'/'+x.id,r:x.vote_average?x.vote_average.toFixed(1):''}});
+      if(l.length>=6)fill(id,l)}).catch(function(){})}
+shelf('rail-m','movie');shelf('rail-s','tv');
+shelf('rail-a','tv','discover/tv?with_genres=16&with_original_language=ja&sort_by=popularity.desc');
+shelf('rail-d','tv','discover/tv?with_genres=18&with_original_language=ko&sort_by=popularity.desc');
+
+/* Eventos do dia (Rei dos Embeds): somente agenda, sem links de transmissão */
+var EV=[],evg=document.getElementById('evgrid'),evt=document.getElementById('evtabs');
+function team(n,src){var d=document.createElement('div');d.className='tm';
+  if(src){var im=new Image();im.alt='';im.referrerPolicy='no-referrer';im.onerror=function(){im.remove()};im.src=src;d.appendChild(im)}
+  var s=document.createElement('span');s.textContent=n;d.appendChild(s);return d}
+function evRender(cat){
+  evg.innerHTML='';
+  var l=EV.filter(function(e){return cat==='Todos'||e.category===cat}).slice(0,30);
+  if(!l.length){evg.textContent='Nenhum evento para hoje.';return}
+  l.forEach(function(e){
+    var c=document.createElement('div');c.className='ev';
+    var h=document.createElement('div');h.className='evh';
+    var b=document.createElement('span');b.className='bd'+(e.status==='live'?' live':'');
+    b.textContent=e.status==='live'?'AO VIVO':(e.status==='upcoming'?e.start_time.slice(11,16):'Encerrado');
+    var s=document.createElement('small');s.textContent=[e.competition,e.category].filter(Boolean).join(' · ');
+    h.appendChild(b);h.appendChild(s);c.appendChild(h);
+    if(e.time1_name&&e.time2_name&&e.visual_model==='versus'){
+      var v=document.createElement('div');v.className='vs';
+      var x=document.createElement('b');x.textContent='x';
+      v.appendChild(team(e.time1_name,e.time1));v.appendChild(x);v.appendChild(team(e.time2_name,e.time2));c.appendChild(v)}
+    else{var t=document.createElement('div');t.className='evtt';t.textContent=e.title;c.appendChild(t)}
+    evg.appendChild(c)})}
+fetch('https://reidosembeds.lat/api/eventos').then(function(r){return r.json()}).then(function(d){
+  var today=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
+  EV=(d.data||[]).filter(function(e){return e.status==='live'||(e.start_time||'').slice(0,10)===today});
+  EV.sort(function(a,b){return (b.status==='live')-(a.status==='live')||a.start_time.localeCompare(b.start_time)});
+  var cats=['Todos'];EV.forEach(function(e){if(e.category&&cats.indexOf(e.category)<0)cats.push(e.category)});
+  cats.forEach(function(k,i){var f=document.createElement('button');f.type='button';f.className='fchip';f.textContent=k;f.setAttribute('aria-pressed',i===0);
+    f.addEventListener('click',function(){evt.querySelectorAll('.fchip').forEach(function(z){z.setAttribute('aria-pressed',z===f)});evRender(k)});evt.appendChild(f)});
+  evRender('Todos');
+}).catch(function(){evg.textContent='Não foi possível carregar a agenda agora.'});
+document.querySelectorAll('[data-r]').forEach(function(b){b.addEventListener('click',function(){
+  var r=document.getElementById(b.dataset.r);r.scrollBy({left:b.dataset.d*r.clientWidth*.8,behavior:'smooth'})})});
+
+/* Fundo animado do topo: imagens em alta com zoom lento */
+(function(){
+  var box=document.getElementById('hbg'),sl=[],cur=0,cap=document.createElement('div');
+  cap.className='hcap';box.appendChild(cap);
+  function show(i){sl.forEach(function(s,k){s.el.classList.toggle('on',k===i)});cap.textContent=sl[i].cap||''}
+  function add(src,c){var im=new Image();im.alt='';im.className='hs';im.referrerPolicy='no-referrer';
+    im.onload=function(){box.insertBefore(im,cap);sl.push({el:im,cap:c});if(sl.length===1)show(0)};im.src=src}
+  fetch('https://api.themoviedb.org/3/trending/all/week?language=pt-BR&api_key='+TMDB_KEY)
+    .then(function(r){return r.json()})
+    .then(function(d){(d.results||[]).filter(function(x){return x.backdrop_path}).slice(0,8).forEach(function(x){
+      add('https://image.tmdb.org/t/p/w780'+x.backdrop_path,x.title||x.name)})}).catch(function(){});
+  setInterval(function(){if(sl.length>1){cur=(cur+1)%sl.length;show(cur)}},6000);
+})();
+
+/* Entrada suave ao rolar */
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('v');io.unobserve(e.target)}})},{threshold:.15});
+document.querySelectorAll('.feat,.tile').forEach(function(el,i){el.style.transitionDelay=(i%6)*.08+'s';io.observe(el)});
+
+document.getElementById('yr').textContent=new Date().getFullYear();
+var words=['Filmes','Séries','Ao vivo','Animes','Lançamentos','Clássicos','Documentários','Esportes','Infantil','Novelas'];
+document.getElementById('track').innerHTML=words.concat(words).map(function(w){return '<span>'+w+'</span>'}).join('');
+
+var phrases=['assistir filmes.','maratonar séries.','ver canais ao vivo.','ir direto ao que importa.'];
+var el=document.getElementById('typed'),pi=0,ci=0,del=false;
+function tick(){var p=phrases[pi];el.textContent=p.slice(0,ci);
+  if(!del&&ci===p.length){del=true;return setTimeout(tick,1500)}
+  if(del&&ci===0){del=false;pi=(pi+1)%phrases.length}
+  ci+=del?-1:1;setTimeout(tick,del?28:60)}
+tick();
+
+document.querySelectorAll('.copy').forEach(function(b){b.addEventListener('click',async function(){
+  var o=b.textContent;
+  try{await navigator.clipboard.writeText(b.dataset.copy);b.textContent='Copiado';b.classList.add('copied')}catch(e){b.textContent='Selecione o link'}
+  setTimeout(function(){b.textContent=o;b.classList.remove('copied')},1600)})});
+
+document.querySelectorAll('.card').forEach(function(c){var i=c.querySelector('.in');
+  c.addEventListener('pointermove',function(e){if(e.pointerType==='touch')return;
+    var r=c.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;
+    i.style.setProperty('--mx',x*100+'%');i.style.setProperty('--my',y*100+'%');
+    c.style.transform='rotateX('+((.5-y)*8)+'deg) rotateY('+((x-.5)*10)+'deg) translateZ(6px)'});
+  c.addEventListener('pointerleave',function(){c.style.transform=''})});
+
+new IntersectionObserver(function(e,o){if(e[0].isIntersecting){e[0].target.classList.add('on');o.disconnect()}},{threshold:.5}).observe(document.getElementById('steps'));
+
+var tabs=document.querySelectorAll('.tab'),pn=document.querySelectorAll('.panel');
+tabs.forEach(function(t,i){t.addEventListener('click',function(){tabs.forEach(function(x,k){x.setAttribute('aria-selected',k===i);pn[k].hidden=k!==i})})});
+
+var qd=document.getElementById('qr'),qb=document.getElementById('qrbox');
+document.querySelectorAll('.copy').forEach(function(c){
+  var q=document.createElement('button');q.type='button';q.className='btn';q.textContent='QR';
+  q.addEventListener('click',function(){qb.innerHTML='';document.getElementById('qrt').textContent=c.closest('.in').querySelector('h3').textContent;
+    try{new QRCode(qb,{text:c.dataset.copy,width:180,height:180})}catch(e){qb.textContent='QR indisponível'}
+    qd.showModal()});
+  c.after(q)});
+document.getElementById('qrx').onclick=function(){qd.close()};
+qd.addEventListener('click',function(e){if(e.target===qd)qd.close()});
+
+/* Navegação por setas (controle remoto de TV) */
+document.addEventListener('keydown',function(e){
+  var k={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]}[e.key];
+  if(!k||qd.open)return;
+  var els=[].slice.call(document.querySelectorAll('a[href],button,summary')).filter(function(x){return x.offsetParent});
+  var cur=document.activeElement;
+  if(els.indexOf(cur)<0){els[0].focus();e.preventDefault();return}
+  var r=cur.getBoundingClientRect(),cx0=r.left+r.width/2,cy0=r.top+r.height/2,best,bd=1e9;
+  els.forEach(function(x){if(x===cur)return;var b=x.getBoundingClientRect(),dx=b.left+b.width/2-cx0,dy=b.top+b.height/2-cy0,al=dx*k[0]+dy*k[1];
+    if(al<=1)return;var d=al+(Math.abs(dx*k[1])+Math.abs(dy*k[0]))*2;if(d<bd){bd=d;best=x}});
+  if(best){best.focus();best.scrollIntoView({block:'center',behavior:'smooth'});e.preventDefault()}});
+
+/* Barra de progresso */
+var bar=document.getElementById('bar');
+addEventListener('scroll',function(){bar.style.transform='scaleX('+(scrollY/(document.documentElement.scrollHeight-innerHeight||1))+')'},{passive:true});
+
+/* Fundo animado */
+var g=document.getElementById('glow'),cv=document.getElementById('fx'),cx=cv.getContext('2d'),P=[],mouse={x:-999,y:-999},t=0;
+function size(){var d=Math.min(devicePixelRatio||1,2);cv.width=innerWidth*d;cv.height=innerHeight*d;cx.setTransform(d,0,0,d,0,0);
+  var n=Math.min(90,Math.floor(innerWidth*innerHeight/18000));P=[];
+  for(var k=0;k<n;k++)P.push({x:Math.random()*innerWidth,y:Math.random()*innerHeight,vx:(Math.random()-.5)*.35,vy:(Math.random()-.5)*.35})}
+size();addEventListener('resize',size);
+addEventListener('pointermove',function(e){mouse.x=e.clientX;mouse.y=e.clientY;g.style.left=e.clientX+'px';g.style.top=e.clientY+'px'});
+function frame(){t+=.01;var w=innerWidth,h=innerHeight;cx.clearRect(0,0,w,h);
+  var hor=h*.62;cx.strokeStyle='rgba(52,140,254,.10)';cx.lineWidth=1;
+  for(var i=-14;i<=14;i++){cx.beginPath();cx.moveTo(w/2+i*28,hor);cx.lineTo(w/2+i*(w/10),h);cx.stroke()}
+  for(var j=0;j<10;j++){var f=((j+t*4)%10)/10,y=hor+(h-hor)*f*f;cx.globalAlpha=f;cx.beginPath();cx.moveTo(0,y);cx.lineTo(w,y);cx.stroke()}
+  cx.globalAlpha=1;
+  var sy=(t*60%(h+200))-100,sg=cx.createLinearGradient(0,sy-60,0,sy+60);
+  sg.addColorStop(0,'rgba(34,227,196,0)');sg.addColorStop(.5,'rgba(34,227,196,.07)');sg.addColorStop(1,'rgba(34,227,196,0)');
+  cx.fillStyle=sg;cx.fillRect(0,sy-60,w,120);
+  for(var a=0;a<P.length;a++){var p=P[a];p.x+=p.vx;p.y+=p.vy;
+    if(p.x<0||p.x>w)p.vx*=-1;if(p.y<0||p.y>h)p.vy*=-1;
+    var dx=p.x-mouse.x,dy=p.y-mouse.y,d=Math.hypot(dx,dy);if(d<140){p.x+=dx/d*1.2;p.y+=dy/d*1.2}
+    cx.fillStyle='rgba(110,172,255,.8)';cx.beginPath();cx.arc(p.x,p.y,1.6,0,6.283);cx.fill();
+    for(var b=a+1;b<P.length;b++){var q=P[b],l=Math.hypot(p.x-q.x,p.y-q.y);
+      if(l<120){cx.strokeStyle='rgba(52,140,254,'+(.28*(1-l/120))+')';cx.beginPath();cx.moveTo(p.x,p.y);cx.lineTo(q.x,q.y);cx.stroke()}}
+    if(d<160){cx.strokeStyle='rgba(34,227,196,'+(.5*(1-d/160))+')';cx.beginPath();cx.moveTo(p.x,p.y);cx.lineTo(mouse.x,mouse.y);cx.stroke()}}
+  requestAnimationFrame(frame)}
+if(!matchMedia('(prefers-reduced-motion:reduce)').matches)frame();
 </script>
 </body>
-</html>`);
+</html>
+`);
 });
 if (require.main === module) {
   const server = app.listen(PORT, () => {
