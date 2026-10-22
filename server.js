@@ -5812,9 +5812,9 @@ if (require.main === module) {
   server.on('error', (error) => { console.error('Não foi possível iniciar o addon:', error); process.exitCode = 1; });
 }
 
-module.exports = {
-  app,
-  _test: {
+module.exports = app;
+module.exports.app = app;
+module.exports._test = {
     PROVIDERS,
     providerResolver: ProviderResolver._test,
     liveTv: LiveTv._test,
@@ -5842,5 +5842,4 @@ module.exports = {
     M3U_SOURCES,
     EPG_SOURCES,
     LiveTv
-  }
 };
