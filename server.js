@@ -339,6 +339,20 @@ function extractEmbedTvErrorSources(html) {
     .map((match) => match[1])
     .filter((value) => isEmbedTvHlsSourceUrl(value)))];
 }
+const EMBEDTV_FALLBACK_FILE = process.env.EMBEDTV_FALLBACK_FILE || path.join(__dirname, 'embedTV.json');
+const EMBEDTV_ERROR_FALLBACKS = new Map();
+try {
+  const fallbackPayload = JSON.parse(fs.readFileSync(EMBEDTV_FALLBACK_FILE, 'utf8'));
+  const fallbackItems = Array.isArray(fallbackPayload) ? fallbackPayload : fallbackPayload.channels;
+  for (const item of Array.isArray(fallbackItems) ? fallbackItems : []) {
+    const id = String(item?.id || '').trim();
+    const errorTxt = String(item?.errorTxt || '').trim();
+    if (id && isEmbedTvHlsSourceUrl(errorTxt)) EMBEDTV_ERROR_FALLBACKS.set(id, errorTxt);
+  }
+  console.log(`[EmbedTV] Fallbacks error.txt carregados: ${EMBEDTV_ERROR_FALLBACKS.size}`);
+} catch (error) {
+  console.warn(`[EmbedTV] Lista de fallbacks indisponível: ${error.message}`);
+}
 function isDirectPlaybackUrl(value) {
   return typeof value === 'string' && /^https?:\/\//i.test(value) && !isLikelyInvalidPlaybackUrl(value) && !/[\s<>"']/u.test(value) && /\.(?:m3u8|mpd|mp4|m4v|ts)(?:$|[?#])/i.test(value);
 }
@@ -1103,7 +1117,11 @@ async function streams(type, id, refreshedEmbedTv = false) {
       sourceLog('embedtv-stream-selected', { id, channelId: item.id, embedUrls: uniqueEmbeds, mode: 'resolve-direct-source' });
       try {
         const page = await withTimeout(fetchPublicText(uniqueEmbeds[0], uniqueEmbeds[0]), 8000, null);
-        const internalSrc = extractEmbedTvErrorSources(page?.text)[0] || null;
+        let internalSrc = extractEmbedTvErrorSources(page?.text)[0] || null;
+        if (!internalSrc) {
+          internalSrc = EMBEDTV_ERROR_FALLBACKS.get(String(item.id || '').trim()) || null;
+          if (internalSrc) sourceLog('embedtv-fallback-source-selected', { id, embedUrl: uniqueEmbeds[0], internalSrc });
+        }
         sourceLog('embedtv-page-source', {
           id,
           embedUrl: uniqueEmbeds[0],
@@ -1164,7 +1182,8 @@ async function streams(type, id, refreshedEmbedTv = false) {
       for (const { url: playerUrl, candidate } of playerPages) {
         try {
           const page = await withTimeout(fetchPublicText(playerUrl, playerUrl), PAGE_TIMEOUT_MS + 1000, null);
-          const internalSrc = extractEmbedTvErrorSources(page?.text)[0] || null;
+          let internalSrc = extractEmbedTvErrorSources(page?.text)[0] || null;
+          if (!internalSrc) internalSrc = EMBEDTV_ERROR_FALLBACKS.get(String(item.id || '').trim()) || null;
           if (!isEmbedTvHlsSourceUrl(internalSrc)) continue;
           const declaredReferer = page?.text?.match(/(?:const|let|var)\s+referer\s*=\s*["']([^"']+)/i)?.[1];
           const request = {
