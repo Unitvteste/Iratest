@@ -1720,7 +1720,7 @@ const M3U_URL = process.env.M3U_URL || './playlist-real-full.m3u';
 const SMART_CMS_FALLBACK_M3U_URL = process.env.SMART_CMS_FALLBACK_M3U_URL ||
   'http://smart.cms-central.ovh:80/get.php?username=381895d9u&password=j26712c&type=m3u_plus';
 const LOCAL_PLAYLIST = Boolean(M3U_URL && !/^https?:\/\//i.test(M3U_URL.trim()));
-const BUNDLED_XTREAM_SOURCES = Object.freeze([{"id":"one-tv","sourceName":"One TV","base":"http://one-tv.sbs","username":"9a31d0691f","password":"c9090c45007e","playlistUrl":"http://one-tv.sbs/get.php?username=9a31d0691f&password=c9090c45007e&type=m3u_plus","xtreamTimeoutMs":50000,"m3uTimeoutMs":50000},{"id":"kasiner","sourceName":"Kasiner","base":"http://kasiner.fun","username":"328525749768","password":"543695573463","playlistUrl":"http://kasiner.fun/get.php?username=328525749768&password=543695573463&type=m3u_plus"},{"id":"dvdplay2","sourceName":"DVDPlay2","base":"http://dvdplay2.com","username":"047597","password":"un7yWp","playlistUrl":"http://dvdplay2.com/get.php?username=047597&password=un7yWp&type=m3u_plus"},{"id":"urlsync","sourceName":"URLSync","base":"http://auth.urlsync.gy","username":"russo20","password":"5a6bqe1w2qq","playlistUrl":"http://auth.urlsync.gy/get.php?username=russo20&password=5a6bqe1w2qq&type=m3u_plus"},{"id":"cms-central","sourceName":"Smart CMS","base":"http://smart.cms-central.ovh:80","username":"381895d9u","password":"j26712c1","playlistUrl":"http://smart.cms-central.ovh:80/get.php?username=381895d9u&password=j26712c1&type=m3u_plus","xtreamTimeoutMs":50000,"m3uTimeoutMs":90000},{"id":"oneplayfastpro","sourceName":"OnePlayFastPro","base":"http://oneplayfastpro.xyz:80","username":"11234bth","password":"mrx38574","playlistUrl":"http://oneplayfastpro.xyz:80/get.php?username=11234bth&password=mrx38574&type=m3u_plus&output=ts"},{"id":"elite-factory","sourceName":"Elite Factory","base":"http://elite.factoryexcelencia.online","username":"0107641","password":"2355845","playlistUrl":"http://elite.factoryexcelencia.online/get.php?username=0107641&password=2355845&type=m3u_plus"},{"id":"cdnplay","sourceName":"CDNPlay","base":"http://cdnplay.pro:80","username":"123456789","password":"123456789","playlistUrl":"http://cdnplay.pro:80/get.php?username=123456789&password=123456789&type=m3u_plus"},{"id":"gigatvs","sourceName":"Giga TVs","base":"http://gigatvs.com","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://gigatvs.com/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"clarotv","sourceName":"Claro TV","base":"http://clarotv.org","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://clarotv.org/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"lbplay","sourceName":"LB Play","base":"http://lbplay.ddns.me","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://lbplay.ddns.me/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"teleflixhd","sourceName":"Teleflix HD","base":"http://teleflixhd.club","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://teleflixhd.club/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"ultclub","sourceName":"Ult Club","base":"http://ultclub.click","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://ultclub.click/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"brasilplaytv","sourceName":"Brasil Play TV","base":"http://brasilplaytv.com","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://brasilplaytv.com/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"afg154","sourceName":"AFG154","base":"http://afg154.life","username":"2517196817962","password":"1854172424814","playlistUrl":"http://afg154.life/get.php?username=2517196817962&password=1854172424814&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"cdn4k-us-Claud091203","sourceName":"CDN4K.us","base":"http://cdn4k.live:80","username":"Claud091203","password":"eudb3irAe12","playlistUrl":"http://cdn4k.live:80/get.php?username=Claud091203&password=eudb3irAe12&type=m3u_plus&output=ts","xtreamTimeoutMs":45000,"m3uTimeoutMs":90000},{"id":"cdn4k-us-aripai","sourceName":"CDN4K.live Aripai","base":"http://cdn4k.live:80","username":"aripai","password":"i2p4t6v10","playlistUrl":"http://cdn4k.live:80/get.php?username=aripai&password=i2p4t6v10&type=m3u_plus&output=ts","xtreamTimeoutMs":45000,"m3uTimeoutMs":90000}]);
+const BUNDLED_XTREAM_SOURCES = Object.freeze([{"id":"one-tv","sourceName":"One TV","base":"http://one-tv.sbs","username":"9a31d0691f","password":"c9090c45007e","playlistUrl":"http://one-tv.sbs/get.php?username=9a31d0691f&password=c9090c45007e&type=m3u_plus","xtreamTimeoutMs":50000,"m3uTimeoutMs":50000},{"id":"kasiner","sourceName":"Kasiner","base":"http://kasiner.fun","username":"328525749768","password":"543695573463","playlistUrl":"http://kasiner.fun/get.php?username=328525749768&password=543695573463&type=m3u_plus"},{"id":"dvdplay2","sourceName":"DVDPlay2","base":"http://dvdplay2.com","username":"047597","password":"un7yWp","playlistUrl":"http://dvdplay2.com/get.php?username=047597&password=un7yWp&type=m3u_plus"},{"id":"urlsync","sourceName":"URLSync","base":"http://auth.urlsync.gy","username":"russo20","password":"5a6bqe1w2qq","playlistUrl":"http://auth.urlsync.gy/get.php?username=russo20&password=5a6bqe1w2qq&type=m3u_plus"},{"id":"cms-central","sourceName":"Smart CMS","base":"http://smart.cms-central.ovh:80","username":"381895d9u","password":"j26712c1","playlistUrl":"http://smart.cms-central.ovh:80/get.php?username=381895d9u&password=j26712c1&type=m3u_plus","xtreamTimeoutMs":50000,"m3uTimeoutMs":90000},{"id":"oneplayfastpro","sourceName":"OnePlayFastPro","base":"http://oneplayfastpro.xyz:80","username":"11234bth","password":"mrx38574","playlistUrl":"http://oneplayfastpro.xyz:80/get.php?username=11234bth&password=mrx38574&type=m3u_plus&output=ts"},{"id":"elite-factory","sourceName":"Elite Factory","base":"http://elite.factoryexcelencia.online","username":"0107641","password":"2355845","playlistUrl":"http://elite.factoryexcelencia.online/get.php?username=0107641&password=2355845&type=m3u_plus"},{"id":"cdnplay","sourceName":"CDNPlay","base":"http://cdnplay.pro:80","username":"123456789","password":"123456789","playlistUrl":"http://cdnplay.pro:80/get.php?username=123456789&password=123456789&type=m3u_plus"},{"id":"gigatvs","sourceName":"Giga TVs","base":"http://gigatvs.com","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://gigatvs.com/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"clarotv","sourceName":"Claro TV","base":"http://clarotv.org","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://clarotv.org/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"lbplay","sourceName":"LB Play","base":"http://lbplay.ddns.me","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://lbplay.ddns.me/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"teleflixhd","sourceName":"Teleflix HD","base":"http://teleflixhd.club","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://teleflixhd.club/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"ultclub","sourceName":"Ult Club","base":"http://ultclub.click","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://ultclub.click/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"brasilplaytv","sourceName":"Brasil Play TV","base":"http://brasilplaytv.com","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://brasilplaytv.com/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"afg154","sourceName":"AFG154","base":"http://afg154.life","username":"2517196817962","password":"1854172424814","playlistUrl":"http://afg154.life/get.php?username=2517196817962&password=1854172424814&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"cdn4k-live-Claud091203","sourceName":"CDN4K.live","base":"http://cdn4k.live:80","username":"Claud091203","password":"eudb3irAe12","playlistUrl":"http://cdn4k.live:80/get.php?username=Claud091203&password=eudb3irAe12&type=m3u_plus&output=ts","xtreamTimeoutMs":45000,"m3uTimeoutMs":90000},{"id":"cdn4k-live-aripai","sourceName":"CDN4K.live Aripai","base":"http://cdn4k.live:80","username":"aripai","password":"i2p4t6v10","playlistUrl":"http://cdn4k.live:80/get.php?username=aripai&password=i2p4t6v10&type=m3u_plus&output=ts","xtreamTimeoutMs":45000,"m3uTimeoutMs":90000}]);
 const BUNDLED_M3U_SOURCES = BUNDLED_XTREAM_SOURCES
   .filter((source) => source.playlistUrl)
   .map((source) => ({ id: `xtream-${source.id}`, name: source.sourceName || source.name || source.id, url: source.playlistUrl, timeoutMs: source.m3uTimeoutMs }));
@@ -1732,7 +1732,7 @@ const M3U_SOURCES = [
     ...BUNDLED_M3U_SOURCES
   ])
 ].filter((source) => source.url && source.url.trim());
-const XTREAM_URL = (process.env.XTREAM_URL || 'http://cdn4k.us:80').replace(/\/$/, '');
+const XTREAM_URL = (process.env.XTREAM_URL || 'http://cdn4k.live:80').replace(/\/$/, '');
 const XTREAM_USERNAME = process.env.XTREAM_USERNAME || '89625u16';
 const XTREAM_PASSWORD = process.env.XTREAM_PASSWORD || 'z17844a8';
 const XTREAM_ENABLED = Boolean(XTREAM_URL && XTREAM_USERNAME && XTREAM_PASSWORD);
@@ -5451,11 +5451,11 @@ builder.defineCatalogHandler(
         }
         if (xtreamType !== 'tv') {
           try {
-            const metas = await singleSourceM3uCatalog('xtream-cdn4k-us-89625', xtreamType, extra);
-            sourceLog('catalog-primary-m3u-ready', { type: xtreamType, source: 'CDN4K.us 89625', count: metas.length });
+            const metas = await singleSourceM3uCatalog('xtream-cdn4k-live-89625', xtreamType, extra);
+            sourceLog('catalog-primary-m3u-ready', { type: xtreamType, source: 'CDN4K.live 89625', count: metas.length });
             return { metas };
           } catch (m3uPrimaryError) {
-            sourceLog('catalog-primary-m3u-error', { type: xtreamType, source: 'CDN4K.us 89625', error: String(m3uPrimaryError.message || '').slice(0, 120) });
+            sourceLog('catalog-primary-m3u-error', { type: xtreamType, source: 'CDN4K.live 89625', error: String(m3uPrimaryError.message || '').slice(0, 120) });
           }
         }
         if (xtreamType !== 'tv') {
@@ -5484,7 +5484,7 @@ builder.defineCatalogHandler(
           console.warn(`[XTREAM] CDN4K indisponível para ${xtreamType}: ${error.message}`);
           sourceLog('xtream-catalog-fallback', { type: xtreamType, from: 'CDN4K', error: String(error.message || '').slice(0, 120) });
           if (xtreamType !== 'tv') {
-            for (const fallbackId of ['cdn4k-us-89625', 'cdn4k-us-aripai', 'cms-central']) {
+            for (const fallbackId of ['cdn4k-live-89625', 'cdn4k-live-aripai', 'cms-central']) {
               const fallbackSource = XTREAM_SOURCES.find((source) => source.id === fallbackId);
               if (!fallbackSource) continue;
               try {
@@ -5511,7 +5511,7 @@ builder.defineCatalogHandler(
             return { metas: [] };
           }
           if (xtreamType === 'tv') {
-            for (const cdn4kUsId of ['cdn4k-us-89625', 'cdn4k-us-aripai']) {
+            for (const cdn4kUsId of ['cdn4k-live-89625', 'cdn4k-live-aripai']) {
               const cdn4kUs = XTREAM_SOURCES.find((source) => source.id === cdn4kUsId);
               if (!cdn4kUs) continue;
               try {
@@ -5534,7 +5534,7 @@ builder.defineCatalogHandler(
                 sourceLog('xtream-catalog-fallback-error', { type: 'tv', source: smartCms.sourceName || smartCms.id, error: String(fallbackError.message || '').slice(0, 120) });
               }
             }
-            for (const cdn4kUsM3uId of ['xtream-cdn4k-us-89625', 'xtream-cdn4k-us-aripai']) {
+            for (const cdn4kUsM3uId of ['xtream-cdn4k-live-89625', 'xtream-cdn4k-live-aripai']) {
               try {
                 const metas = await singleSourceTvCatalog(cdn4kUsM3uId, extra);
                 sourceLog('xtream-catalog-fallback-ready', {
@@ -5550,15 +5550,15 @@ builder.defineCatalogHandler(
               }
             }
             try {
-              const metas = await singleSourceTvCatalog('xtream-cdn4k-us', extra);
+              const metas = await singleSourceTvCatalog('xtream-cdn4k-live', extra);
               sourceLog('xtream-catalog-fallback-ready', {
-                type: 'tv', source: 'CDN4K.us', mode: 'm3u', count: metas.length
+                type: 'tv', source: 'CDN4K.live', mode: 'm3u', count: metas.length
               });
               return { metas };
             } catch (cdn4kUsM3uError) {
-              console.warn(`[XTREAM] CDN4K.us M3U indisponível para TV: ${cdn4kUsM3uError.message}`);
+              console.warn(`[XTREAM] CDN4K.live M3U indisponível para TV: ${cdn4kUsM3uError.message}`);
               sourceLog('xtream-catalog-fallback-error', {
-                type: 'tv', source: 'CDN4K.us', mode: 'm3u',
+                type: 'tv', source: 'CDN4K.live', mode: 'm3u',
                 error: String(cdn4kUsM3uError.message || '').slice(0, 120)
               });
               return { metas: [] };
