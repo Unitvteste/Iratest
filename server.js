@@ -900,6 +900,17 @@ async function getEmbedCanaisChannels(force = false) {
 function embedCanaisKey(value) {
   return normalizeText(value).replace(/[^a-z0-9]+/g, '');
 }
+function embedCanaisPlayerUrl(value) {
+  const raw = String(value || '').trim();
+  try {
+    const url = new URL(raw);
+    if (/^(?:www\.)?embedcanaisdetv\.xyz$/i.test(url.hostname) && /\/e\/index\.php$/i.test(url.pathname)) {
+      const channel = String(url.searchParams.get('canal') || '').replace(/[^a-z0-9_-]/gi, '');
+      if (channel) return `https://1709.cdnembedcanais.xyz/${channel}/`;
+    }
+  } catch { /* Mantém o endereço original quando não for uma URL válida. */ }
+  return raw;
+}
 function addGloboAlternates(channel) {
   if (normalizeText(channel?.name || channel?.title) !== 'globo') return channel;
   const embeds = Array.isArray(channel.embeds) ? channel.embeds : [];
@@ -937,7 +948,7 @@ async function getChannels(force = false) {
     const alternate = {
       provider: EMBED_CANAIS_PROVIDER,
       quality: 'FULL HD',
-      embed_url: String(match.href).replace(/\/$/, ''),
+      embed_url: embedCanaisPlayerUrl(match.href).replace(/\/$/, ''),
       source_name: EMBED_CANAIS_PROVIDER
     };
     const embeds = Array.isArray(channel.embeds) ? channel.embeds : [];
@@ -953,7 +964,7 @@ async function getChannels(force = false) {
     name: channel.name || channel.slug || 'Canal',
     category: channel.category || 'Outros',
     logo_url: channel.image,
-    embeds: [{ provider: EMBED_CANAIS_PROVIDER, quality: 'FULL HD', embed_url: String(channel.href || '').replace(/\/$/, '') }]
+    embeds: [{ provider: EMBED_CANAIS_PROVIDER, quality: 'FULL HD', embed_url: embedCanaisPlayerUrl(channel.href || '').replace(/\/$/, '') }]
   }));
   const channels = [...merged, ...fallbacks, ...extraEmbedChannels];
   cache.channels = { at: Date.now(), data: channels };
@@ -1686,7 +1697,7 @@ if (require.main === module && fs.existsSync(playlistArchivePath)) {
     console.error('❌ Não foi possível extrair o ZIP da playlist:', err.message);
   }
 } else if (require.main === module && !fs.existsSync(playlistFilePath)) {
-  console.warn('⚠️ Playlist local não fornecida (ZIP/M3U); Xtream e provedores diretos continuam ativos.');
+  console.log('Modo somente Xtream/API ativo; playlists M3U desativadas.');
 }
 
 const upstreamAgent = new Agent({
@@ -1720,18 +1731,14 @@ const M3U_URL = process.env.M3U_URL || './playlist-real-full.m3u';
 const SMART_CMS_FALLBACK_M3U_URL = process.env.SMART_CMS_FALLBACK_M3U_URL ||
   'http://smart.cms-central.ovh:80/get.php?username=381895d9u&password=j26712c&type=m3u_plus';
 const LOCAL_PLAYLIST = Boolean(M3U_URL && !/^https?:\/\//i.test(M3U_URL.trim()));
-const BUNDLED_XTREAM_SOURCES = Object.freeze([{"id":"one-tv","sourceName":"One TV","base":"http://one-tv.sbs","username":"9a31d0691f","password":"c9090c45007e","playlistUrl":"http://one-tv.sbs/get.php?username=9a31d0691f&password=c9090c45007e&type=m3u_plus","xtreamTimeoutMs":50000,"m3uTimeoutMs":50000},{"id":"kasiner","sourceName":"Kasiner","base":"http://kasiner.fun","username":"328525749768","password":"543695573463","playlistUrl":"http://kasiner.fun/get.php?username=328525749768&password=543695573463&type=m3u_plus"},{"id":"dvdplay2","sourceName":"DVDPlay2","base":"http://dvdplay2.com","username":"047597","password":"un7yWp","playlistUrl":"http://dvdplay2.com/get.php?username=047597&password=un7yWp&type=m3u_plus"},{"id":"urlsync","sourceName":"URLSync","base":"http://auth.urlsync.gy","username":"russo20","password":"5a6bqe1w2qq","playlistUrl":"http://auth.urlsync.gy/get.php?username=russo20&password=5a6bqe1w2qq&type=m3u_plus"},{"id":"cms-central","sourceName":"Smart CMS","base":"http://smart.cms-central.ovh:80","username":"381895d9u","password":"j26712c1","playlistUrl":"http://smart.cms-central.ovh:80/get.php?username=381895d9u&password=j26712c1&type=m3u_plus","xtreamTimeoutMs":50000,"m3uTimeoutMs":90000},{"id":"oneplayfastpro","sourceName":"OnePlayFastPro","base":"http://oneplayfastpro.xyz:80","username":"11234bth","password":"mrx38574","playlistUrl":"http://oneplayfastpro.xyz:80/get.php?username=11234bth&password=mrx38574&type=m3u_plus&output=ts"},{"id":"elite-factory","sourceName":"Elite Factory","base":"http://elite.factoryexcelencia.online","username":"0107641","password":"2355845","playlistUrl":"http://elite.factoryexcelencia.online/get.php?username=0107641&password=2355845&type=m3u_plus"},{"id":"cdnplay","sourceName":"CDNPlay","base":"http://cdnplay.pro:80","username":"123456789","password":"123456789","playlistUrl":"http://cdnplay.pro:80/get.php?username=123456789&password=123456789&type=m3u_plus"},{"id":"gigatvs","sourceName":"Giga TVs","base":"http://gigatvs.com","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://gigatvs.com/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"clarotv","sourceName":"Claro TV","base":"http://clarotv.org","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://clarotv.org/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"lbplay","sourceName":"LB Play","base":"http://lbplay.ddns.me","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://lbplay.ddns.me/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"teleflixhd","sourceName":"Teleflix HD","base":"http://teleflixhd.club","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://teleflixhd.club/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"ultclub","sourceName":"Ult Club","base":"http://ultclub.click","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://ultclub.click/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"brasilplaytv","sourceName":"Brasil Play TV","base":"http://brasilplaytv.com","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://brasilplaytv.com/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"afg154","sourceName":"AFG154","base":"http://afg154.life","username":"2517196817962","password":"1854172424814","playlistUrl":"http://afg154.life/get.php?username=2517196817962&password=1854172424814&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"cdn4k-live-Claud091203","sourceName":"CDN4K.live","base":"http://cdn4k.live:80","username":"Claud091203","password":"eudb3irAe12","playlistUrl":"http://cdn4k.live:80/get.php?username=Claud091203&password=eudb3irAe12&type=m3u_plus&output=ts","xtreamTimeoutMs":45000,"m3uTimeoutMs":90000},{"id":"cdn4k-live-aripai","sourceName":"CDN4K.live Aripai","base":"http://cdn4k.live:80","username":"aripai","password":"i2p4t6v10","playlistUrl":"http://cdn4k.live:80/get.php?username=aripai&password=i2p4t6v10&type=m3u_plus&output=ts","xtreamTimeoutMs":45000,"m3uTimeoutMs":90000}]);
+const BUNDLED_XTREAM_SOURCES = Object.freeze([{"id":"one-tv","sourceName":"One TV","base":"http://one-tv.sbs","username":"9a31d0691f","password":"c9090c45007e","playlistUrl":"http://one-tv.sbs/get.php?username=9a31d0691f&password=c9090c45007e&type=m3u_plus","xtreamTimeoutMs":50000,"m3uTimeoutMs":50000},{"id":"kasiner","sourceName":"Kasiner","base":"http://kasiner.fun","username":"328525749768","password":"543695573463","playlistUrl":"http://kasiner.fun/get.php?username=328525749768&password=543695573463&type=m3u_plus"},{"id":"dvdplay2","sourceName":"DVDPlay2","base":"http://dvdplay2.com","username":"047597","password":"un7yWp","playlistUrl":"http://dvdplay2.com/get.php?username=047597&password=un7yWp&type=m3u_plus"},{"id":"urlsync","sourceName":"URLSync","base":"http://auth.urlsync.gy","username":"russo20","password":"5a6bqe1w2qq","playlistUrl":"http://auth.urlsync.gy/get.php?username=russo20&password=5a6bqe1w2qq&type=m3u_plus"},{"id":"cms-central","sourceName":"Smart CMS","base":"http://smart.cms-central.ovh:80","username":"78069211","password":"fk7106","playlistUrl":"http://smart.cms-central.ovh:80/get.php?username=78069211&password=fk7106&type=m3u_plus","xtreamTimeoutMs":50000,"m3uTimeoutMs":90000},{"id":"oneplayfastpro","sourceName":"OnePlayFastPro","base":"http://oneplayfastpro.xyz:80","username":"11234bth","password":"mrx38574","playlistUrl":"http://oneplayfastpro.xyz:80/get.php?username=11234bth&password=mrx38574&type=m3u_plus&output=ts"},{"id":"elite-factory","sourceName":"Elite Factory","base":"http://elite.factoryexcelencia.online","username":"0107641","password":"2355845","playlistUrl":"http://elite.factoryexcelencia.online/get.php?username=0107641&password=2355845&type=m3u_plus"},{"id":"cdnplay","sourceName":"CDNPlay","base":"http://cdnplay.pro:80","username":"123456789","password":"123456789","playlistUrl":"http://cdnplay.pro:80/get.php?username=123456789&password=123456789&type=m3u_plus"},{"id":"gigatvs","sourceName":"Giga TVs","base":"http://gigatvs.com","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://gigatvs.com/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"clarotv","sourceName":"Claro TV","base":"http://clarotv.org","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://clarotv.org/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"lbplay","sourceName":"LB Play","base":"http://lbplay.ddns.me","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://lbplay.ddns.me/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"teleflixhd","sourceName":"Teleflix HD","base":"http://teleflixhd.club","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://teleflixhd.club/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"ultclub","sourceName":"Ult Club","base":"http://ultclub.click","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://ultclub.click/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"brasilplaytv","sourceName":"Brasil Play TV","base":"http://brasilplaytv.com","username":"asd97571830","password":"Zaptv2024","playlistUrl":"http://brasilplaytv.com/get.php?username=asd97571830&password=Zaptv2024&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"afg154","sourceName":"AFG154","base":"http://afg154.life","username":"2517196817962","password":"1854172424814","playlistUrl":"http://afg154.life/get.php?username=2517196817962&password=1854172424814&type=m3u_plus","xtreamTimeoutMs":55000,"m3uTimeoutMs":90000},{"id":"cdn4k-live-89625","sourceName":"CDN4K.live 89625","base":"http://cdn4k.live:80","username":"89625u16","password":"z17844a8","playlistUrl":"http://cdn4k.live:80/get.php?username=89625u16&password=z17844a8&type=m3u_plus&output=ts","xtreamTimeoutMs":45000,"m3uTimeoutMs":90000},{"id":"cdn4k-live-aripai","sourceName":"CDN4K.live Aripai","base":"http://cdn4k.live:80","username":"aripai","password":"i2p4t6v10","playlistUrl":"http://cdn4k.live:80/get.php?username=aripai&password=i2p4t6v10&type=m3u_plus&output=ts","xtreamTimeoutMs":45000,"m3uTimeoutMs":90000},{"id":"vaiagora","sourceName":"Vai Agora","base":"http://vaiagora.vip:80","username":"NinoCaique","password":"282TVWvdm","playlistUrl":"http://vaiagora.vip:80/get.php?username=NinoCaique&password=282TVWvdm&type=m3u_plus&output=ts","xtreamTimeoutMs":50000,"m3uTimeoutMs":90000},{"id":"4kplay","sourceName":"4KPlay","base":"http://4kplay33.icu","username":"76626mhc","password":"grw21928","xtreamTimeoutMs":10000}]);
 const BUNDLED_M3U_SOURCES = BUNDLED_XTREAM_SOURCES
   .filter((source) => source.playlistUrl)
   .map((source) => ({ id: `xtream-${source.id}`, name: source.sourceName || source.name || source.id, url: source.playlistUrl, timeoutMs: source.m3uTimeoutMs }));
-const M3U_SOURCES = [
-  { id: 'lista-m3u', name: process.env.M3U_SOURCE_NAME || 'Lista M3U', url: M3U_URL },
-  ...(LOCAL_PLAYLIST ? [] : [
-    { id: 'smart-cms', name: 'Smart CMS', url: SMART_CMS_FALLBACK_M3U_URL },
-    { id: 'revenda-imperio', name: 'Revenda Império', url: process.env.REVENDA_M3U_URL || '' },
-    ...BUNDLED_M3U_SOURCES
-  ])
-].filter((source) => source.url && source.url.trim());
+// Modo somente Xtream/API: nenhuma playlist M3U é baixada ou processada.
+// As fontes Xtream continuam em XTREAM_SOURCES e usam player_api.php/get.php
+// apenas para os endpoints Xtream necessários, sem importar a lista completa.
+const M3U_SOURCES = [];
 const XTREAM_URL = (process.env.XTREAM_URL || 'http://cdn4k.live:80').replace(/\/$/, '');
 const XTREAM_USERNAME = process.env.XTREAM_USERNAME || '89625u16';
 const XTREAM_PASSWORD = process.env.XTREAM_PASSWORD || 'z17844a8';
@@ -2313,9 +2320,15 @@ async function getMgebDirectStreams(tmdbId, imdbId = '', parentSignal = null, me
 
 function runNuvioProvider(providerId, providerSource, tmdbId, mediaType, season, episode, signal = null) {
   return new Promise((resolve) => {
-    if (signal?.aborted) return resolve({ ok: false, streams: [], aborted: true });
+    const startedAt = Date.now();
+    if (signal?.aborted) {
+      sourceLog('provider-process-skip', { provider: providerId, reason: 'aborted-before-start' });
+      return resolve({ ok: false, streams: [], aborted: true });
+    }
     const args = [
-      '--max-old-space-size=128', '-e', NUVIO_MEGAEMBED_WORKER_SOURCE,
+      // Os adapters processam uma resposta por vez. Um limite por worker
+      // evita que uma fonte defeituosa consuma a memória dos demais.
+      '--max-old-space-size=64', '-e', NUVIO_MEGAEMBED_WORKER_SOURCE,
       providerId, String(tmdbId), mediaType,
       season == null ? '' : String(season), episode == null ? '' : String(episode)
     ];
@@ -2327,40 +2340,49 @@ function runNuvioProvider(providerId, providerSource, tmdbId, mediaType, season,
     let finished = false;
     let timeout;
     let onAbort;
-    const finish = (result) => {
+    const finish = (result, reason = 'completed') => {
       if (finished) return;
       finished = true;
       clearTimeout(timeout);
       if (onAbort) signal?.removeEventListener('abort', onAbort);
+      sourceLog('provider-process-finish', {
+        provider: providerId,
+        pid: child.pid,
+        elapsedMs: Date.now() - startedAt,
+        reason,
+        aborted: Boolean(result?.aborted),
+        streams: Array.isArray(result?.streams) ? result.streams.length : 0,
+        stdoutBytes: Buffer.byteLength(stdout)
+      });
       resolve(result);
     };
     timeout = setTimeout(() => {
       if (finished) return;
       child.kill('SIGKILL');
-      finish({ ok: false, streams: [] });
+      finish({ ok: false, streams: [] }, 'timeout');
     }, NUVIO_PROVIDER_TIMEOUT_MS);
     onAbort = () => {
       if (finished) return;
       child.kill('SIGKILL');
-      finish({ ok: false, streams: [], aborted: true });
+      finish({ ok: false, streams: [], aborted: true }, 'aborted');
     };
     if (signal?.aborted) onAbort();
     else signal?.addEventListener('abort', onAbort, { once: true });
     child.stdout.on('data', (chunk) => {
       if (stdout.length + chunk.length > 1_000_000) {
         child.kill('SIGKILL');
-        finish({ ok: false, streams: [] });
+        finish({ ok: false, streams: [] }, 'stdout-limit');
         return;
       }
       stdout += chunk.toString('utf8');
     });
-    child.once('error', () => finish({ ok: false, streams: [] }));
+    child.once('error', () => finish({ ok: false, streams: [] }, 'process-error'));
     child.once('close', () => {
       if (finished) return;
       try {
         const parsed = JSON.parse(stdout.trim());
-        finish(parsed && parsed.ok && Array.isArray(parsed.streams) ? parsed : { ok: false, streams: [] });
-      } catch { finish({ ok: false, streams: [] }); }
+        finish(parsed && parsed.ok && Array.isArray(parsed.streams) ? parsed : { ok: false, streams: [] }, parsed?.ok ? 'completed' : 'empty');
+      } catch { finish({ ok: false, streams: [] }, 'invalid-json'); }
     });
     child.stdin.on('error', () => {});
     child.stdin.end(providerSource);
@@ -2378,42 +2400,73 @@ function runKamiramaProvider(providerId, tmdbId, mediaType, season, episode, sig
   return runNuvioProvider(`kamirama-${providerId}`, source, tmdbId, mediaType, season, episode, signal);
 }
 async function getKamiramaProviderStreams(tmdbId, mediaType, season, episode, signal = null) {
-  const entries = [...KAMIRAMA_PROVIDER_SOURCES.keys()];
+  if (signal?.aborted) return [];
+  // Cada provedor era executado em um processo Node separado ao mesmo tempo.
+  // Isso multiplicava o heap de 128 MB dos workers e deixava processos vivos
+  // depois que a janela de coleta terminava. Mantemos a mesma janela, mas com
+  // fila curta e cancelamento real dos workers restantes.
+  const priority = ['fshd', 'redeflix', 'embedmovies', 'anistream'];
+  const entries = [...KAMIRAMA_PROVIDER_SOURCES.keys()].sort((a, b) => {
+    const ai = priority.indexOf(a), bi = priority.indexOf(b);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+  });
   const collectionDeadline = Date.now() + Math.min(20000, NUVIO_PROVIDER_TIMEOUT_MS);
-  const pending = new Set();
-  for (const providerId of entries) {
-    const task = withTimeout(
-      runKamiramaProvider(providerId, tmdbId, mediaType, season, episode, signal),
-      NUVIO_PROVIDER_TIMEOUT_MS,
-      { ok: false, streams: [] }
-    );
-    const wrapped = task.then((result) => ({ providerId, result, wrapped }));
-    pending.add(wrapped);
-  }
+  const workerController = new AbortController();
+  const abortWorker = () => workerController.abort();
+  const timer = setTimeout(abortWorker, Math.max(0, collectionDeadline - Date.now()));
+  signal?.addEventListener('abort', abortWorker, { once: true });
+  let cursor = 0;
   const output = [];
-  while (pending.size && Date.now() < collectionDeadline) {
-    const remaining = collectionDeadline - Date.now();
-    const settled = await withTimeout(Promise.race(pending), remaining, null);
-    if (!settled) break;
-    pending.delete(settled.wrapped);
-    const streams = Array.isArray(settled.result?.streams) ? settled.result.streams : [];
-    for (const stream of streams) {
+  const seen = new Set();
+  const append = (providerId, streams) => {
+    for (const stream of Array.isArray(streams) ? streams : []) {
+      if (!stream?.url || seen.has(`${providerId}\u0000${stream.url}`)) continue;
+      seen.add(`${providerId}\u0000${stream.url}`);
       const headers = stream.headers || stream.requestHeaders || {};
       const behaviorHints = stream.behaviorHints && typeof stream.behaviorHints === 'object'
         ? stream.behaviorHints
         : {};
       output.push({
         ...stream,
-        sourceName: stream.sourceName || stream.provider || KAMIRAMA_PROVIDER_NAMES[settled.providerId] || settled.providerId,
-        provider: stream.provider || KAMIRAMA_PROVIDER_NAMES[settled.providerId] || settled.providerId,
+        sourceName: stream.sourceName || stream.provider || KAMIRAMA_PROVIDER_NAMES[providerId] || providerId,
+        provider: stream.provider || KAMIRAMA_PROVIDER_NAMES[providerId] || providerId,
         type: stream.type === 'hls' || /\.m3u8(?:[?#]|$)/i.test(String(stream.url || '')) ? 'hls' : (stream.type || undefined),
         behaviorHints: Object.keys(headers).length
           ? { ...behaviorHints, notWebReady: true, proxyHeaders: { ...(behaviorHints.proxyHeaders || {}), request: headers } }
           : behaviorHints
       });
     }
+  };
+  const worker = async () => {
+    while (!workerController.signal.aborted && Date.now() < collectionDeadline) {
+      const providerId = entries[cursor++];
+      if (!providerId) return;
+      const providerController = new AbortController();
+      const relayAbort = () => providerController.abort();
+      const providerTimeout = setTimeout(() => providerController.abort(), Math.min(5000, Math.max(1, collectionDeadline - Date.now())));
+      workerController.signal.addEventListener('abort', relayAbort, { once: true });
+      try {
+        const result = await runKamiramaProvider(providerId, tmdbId, mediaType, season, episode, providerController.signal);
+        append(providerId, result?.streams);
+      } catch (_) {
+        // Uma fonte indisponível não deve impedir as demais.
+      } finally {
+        clearTimeout(providerTimeout);
+        workerController.signal.removeEventListener('abort', relayAbort);
+        providerController.abort();
+      }
+    }
+  };
+  try {
+    // Seis slots cobrem todos os adapters dentro dos 20s sem voltar ao
+    // fan-out irrestrito que multiplicava dezenas de heaps simultaneamente.
+    await Promise.all(Array.from({ length: Math.min(6, entries.length) }, worker));
+    return output;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', abortWorker);
+    workerController.abort();
   }
-  return output;
 }
 function safeMegaEmbedHeaders(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
@@ -2600,31 +2653,63 @@ async function getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, si
     }
   };
 
-  const [kamiramaStreams, adapterStreams, megaEmbedApiStreams, mgebStreams, myEmbedStreams, playerFlixStreams] = await Promise.all([
-    probeProvider('Kamirama', getKamiramaProviderStreams(tmdbId, type === 'series' ? 'tv' : type, type === 'series' ? Number(season) : null, type === 'series' ? Number(episode) : null, signal), 22000),
-    probeProvider('MegaEmbed adapter', getMegaEmbedAdapterStreams(type, imdbId, tmdbId ? tmdbResult : null, idMatch, signal), type === 'series' ? 14000 : 15000),
-    type === 'movie' ? probeProvider('MegaEmbed API', getMegaEmbedApiStreams(tmdbId, imdb, signal), 15000) : Promise.resolve([]),
-    probeProvider(
-      'Mgeb',
-      getMgebDirectStreams(
-        tmdbId,
-        imdb,
-        signal,
-        type === 'series' ? 'tv' : 'movie',
-        type === 'series' ? Number(idMatch?.[1]) : null,
-        type === 'series' ? Number(idMatch?.[2]) : null
-      ),
-      type === 'series' ? 95000 : 15000
-    ),
-    probeProvider('MyEmbed adapter', getMyEmbedAdapterStreams(type, imdbId, tmdbId ? tmdbResult : null, idMatch, signal), type === 'series' ? 95000 : 95000),
+  const collectionController = new AbortController();
+  const relayAbort = () => collectionController.abort();
+  signal?.addEventListener('abort', relayAbort, { once: true });
+  const collectionDeadline = Date.now() + 20000;
+  const collectionTimer = setTimeout(() => collectionController.abort(), 20000);
+  const jobs = [
+    ['Kamirama', () => getKamiramaProviderStreams(tmdbId, type === 'series' ? 'tv' : type, type === 'series' ? Number(season) : null, type === 'series' ? Number(episode) : null, collectionController.signal), 22000],
+    ['MegaEmbed adapter', () => getMegaEmbedAdapterStreams(type, imdbId, tmdbId ? tmdbResult : null, idMatch, collectionController.signal), type === 'series' ? 14000 : 15000],
+    ...(type === 'movie' ? [['MegaEmbed API', () => getMegaEmbedApiStreams(tmdbId, imdb, collectionController.signal), 15000]] : []),
+    ['Mgeb', () => getMgebDirectStreams(
+      tmdbId,
+      imdb,
+      collectionController.signal,
+      type === 'series' ? 'tv' : 'movie',
+      type === 'series' ? Number(idMatch?.[1]) : null,
+      type === 'series' ? Number(idMatch?.[2]) : null
+    ), type === 'series' ? 95000 : 15000],
+    ['MyEmbed adapter', () => getMyEmbedAdapterStreams(type, imdbId, tmdbId ? tmdbResult : null, idMatch, collectionController.signal), 95000],
     // O Premium pode aguardar a sessão Chromium; não descarte WatchPlay/VIP antes disso.
-    probeProvider('PlayerFlix adapter', getPlayerFlixAdapterStreams(type, tmdbId ? tmdbResult : null, idMatch, signal), type === 'series' ? 90000 : 75000)
-  ]);
+    ['PlayerFlix adapter', () => getPlayerFlixAdapterStreams(type, tmdbId ? tmdbResult : null, idMatch, collectionController.signal), type === 'series' ? 90000 : 75000],
+    ['RedeFlix', () => getRedeflixDirectStreams(
+      type,
+      tmdbId,
+      type === 'series' ? Number(season) : null,
+      type === 'series' ? Number(episode) : null,
+      collectionController.signal
+    ), 18000]
+  ];
+  // Cada job começa separado, mas os resultados entram no acumulador assim que
+  // chegam. Um job lento ou quebrado não bloqueia os que já responderam.
+  const pending = new Set();
+  for (const [provider, factory, timeoutMs] of jobs) {
+    const token = {};
+    const promise = probeProvider(provider, factory(), timeoutMs)
+      .then((streams) => ({ token, streams, promise }));
+    pending.add(promise);
+  }
   const streamsByProviderAndUrl = new Map();
-  for (const item of [...kamiramaStreams, ...adapterStreams, ...megaEmbedApiStreams, ...mgebStreams, ...myEmbedStreams, ...playerFlixStreams]) {
-    if (!item?.url) continue;
-    const provider = item.sourceName || String(item.name || '').split(' • ')[0] || 'Provedor';
-    streamsByProviderAndUrl.set(`${provider}\u0000${item.url}`, item);
+  try {
+    while (pending.size && Date.now() < collectionDeadline) {
+      const remaining = collectionDeadline - Date.now();
+      const settled = await Promise.race([
+        ...pending,
+        new Promise((resolve) => setTimeout(() => resolve(null), remaining))
+      ]);
+      if (!settled) break;
+      pending.delete(settled.promise);
+      for (const item of settled.streams || []) {
+        if (!item?.url) continue;
+        const provider = item.sourceName || String(item.name || '').split(' • ')[0] || 'Provedor';
+        streamsByProviderAndUrl.set(`${provider}\u0000${item.url}`, item);
+      }
+    }
+  } finally {
+    clearTimeout(collectionTimer);
+    signal?.removeEventListener('abort', relayAbort);
+    collectionController.abort();
   }
   const streams = [...streamsByProviderAndUrl.values()];
   if (!signal?.aborted) DIRECT_PROVIDER_STREAM_CACHE.set(cacheKey, {
@@ -2719,7 +2804,7 @@ function sourceLog(event, details = {}) {
 sourceLog('startup', {
   primary: XTREAM_ENABLED ? 'xtream' : 'm3u',
   xtreamConfigured: XTREAM_ENABLED,
-  m3uMode: LOCAL_PLAYLIST ? 'local-file' : 'remote-url',
+  m3uMode: 'disabled',
   safeMode: SAFE_MODE
 });
 
@@ -2853,6 +2938,10 @@ function xtreamEntry(item, kind, extension = 'mp4') {
     url: `${base}/${id}.${streamExtension}`,
     title: item.displayName || item.name || 'Sem título',
     originalTitle: item.displayName || item.name || 'Sem título',
+    // Preserva os metadados da fonte para a decoração final do player.
+    xtreamTitle: item.displayName || item.name || '',
+    xtreamQuality: item.quality || item.video_quality || item.resolution || item.video || '',
+    xtreamLanguage: item.language || item.lang || item.audio || item.audio_language || '',
     group: xtreamGroup(item),
     provider: 'Xtream',
     xtreamSource: source,
@@ -3683,7 +3772,17 @@ async function findM3uEntryForImdbId(type, id) {
 
 async function findXtreamEntriesForImdb(type, id, result, budgetMs = XTREAM_IMDB_TIMEOUT_MS, testOptions = {}) {
   if (!result || !['movie', 'series'].includes(type)) return [];
-  const sourcesToSearch = testOptions.sources || XTREAM_SOURCES;
+  const XTREAM_PLAY_PRIORITY = Object.freeze([
+    'cdn4k-live-89625', 'cdn4k-live-aripai', 'primary',
+    'teleflixhd', 'one-tv', 'oneplayfastpro', '4kplay',
+    'beleco', 'novomundo', 'cms-central', 'lbplay'
+  ]);
+  const priorityRank = (source) => {
+    const index = XTREAM_PLAY_PRIORITY.indexOf(String(source?.id || ''));
+    return index < 0 ? XTREAM_PLAY_PRIORITY.length : index;
+  };
+  const sourcesToSearch = [...(testOptions.sources || XTREAM_SOURCES)]
+    .sort((left, right) => priorityRank(left) - priorityRank(right));
   const requestSource = testOptions.requestSource || xtreamSourceRequest;
   const idMatch = String(id).match(/^tt\d+(?::(\d+):(\d+))?$/i);
   const names = [...new Set([
@@ -3801,10 +3900,10 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = XTREAM_IMDB
     type,
     sources: sourcesToSearch.length,
     timeoutMs: searchTimeout,
-    priorities: false
+    priorities: true
   });
-  // Todas as fontes são consultadas juntas; nenhuma fonte é fallback ou
-  // prioridade de outra. O orçamento comum encerra a rodada em até 15 s.
+  // Todas as fontes continuam sendo consultadas em paralelo; a ordem abaixo
+  // somente organiza os players retornados, sem alterar catálogo ou TV.
   const allMatches = await searchGroup(sourcesToSearch, searchTimeout);
   return [...new Map(allMatches.filter((item) => item?.url).map((item) => [item.url, item])).values()];
 }
@@ -4613,6 +4712,12 @@ async function hydratePlaylistFromDisk() {
 }
 
 async function ensurePlaylist() {
+  // O addon opera somente via Xtream/API. Este retorno evita qualquer tentativa
+  // de baixar, atualizar ou ler playlists M3U nas rotas que possuem fallback.
+  if (!M3U_SOURCES.length) {
+    cache = { count: 0, expiresAt: Infinity, loading: null };
+    return cache;
+  }
   // Restaura o cache que sobreviveu a um restart antes de fazer uma busca IMDb.
   // Sem isso, o primeiro pedido ignorava o JSONL existente, iniciava um novo
   // download em segundo plano e devolvia zero streams naquele mesmo pedido.
@@ -4956,10 +5061,22 @@ function decorateImdbStreams(streams, type, id, result) {
 
   return streams.map((stream) => {
     const source = imdbStreamSource(stream);
+    const sourceMetadata = [
+      stream?.xtreamTitle, stream?.xtreamQuality, stream?.xtreamLanguage,
+      stream?.name, stream?.title
+    ].filter(Boolean).join(' ');
     const foundLanguage = String(stream?.title || '').match(/Idioma:\s*([^\n]+)/i)?.[1]?.trim();
+    const metadataLanguage = String(stream?.xtreamLanguage || '').trim();
+    const inferredLanguage = /\b(?:LEG|LEGENDAD[OA]|SUB|SUBBED|LEGEND)\b/i.test(sourceMetadata)
+      ? 'Legendado'
+      : /\b(?:DUB|DUBLAD[OA]|DUBBED|PT[- ]?BR|PORTUGU[EÊ]S)\b/i.test(sourceMetadata)
+        ? 'Dublado'
+        : /\b(?:EN|ENG|ENGLISH|INGL[EÊ]S)\b/i.test(sourceMetadata)
+          ? 'Inglês'
+          : '';
     const rawQuality = normalizeMgebQuality([
       stream?.quality, stream?.resolution, stream?.streamQuality, stream?.video_quality,
-      stream?.name, stream?.title
+      stream?.xtreamQuality, stream?.xtreamTitle, stream?.name, stream?.title
     ].filter(Boolean).join(' ')) || qualityFor(stream) || 'Auto';
     const quality = rawQuality === 'Auto' ? 'Automática' : rawQuality;
     const streamText = `${stream?.name || ''} ${stream?.title || ''} ${stream?.url || ''}`;
@@ -4968,7 +5085,7 @@ function decorateImdbStreams(streams, type, id, result) {
       /\bdolby[ ._-]?vision\b|\bdv\b/i.test(streamText) ? 'DV' : ''
     ].filter(Boolean);
     const server = friendlyServerName(stream?.xtreamSource?.sourceName || stream?.sourceName || source);
-    const language = foundLanguage || 'Não informado';
+    const language = foundLanguage || inferredLanguage || metadataLanguage || stream?.language || 'Não informado';
     return {
       ...stream,
       sourceName: source,
@@ -5054,6 +5171,77 @@ function withTimeout(promise, timeoutMs, fallback) {
     timer = setTimeout(() => resolve(fallback), timeoutMs);
   });
   return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
+}
+
+async function getRedeflixDirectStreams(type, tmdbId, season, episode, signal = null) {
+  if (!['movie', 'series'].includes(type) || !/^\d+$/.test(String(tmdbId || ''))) return [];
+  if (type === 'series' && (!Number.isInteger(Number(season)) || !Number.isInteger(Number(episode)))) return [];
+  const pageUrl = type === 'movie'
+    ? `https://redeflixapi.bar/filme/${encodeURIComponent(tmdbId)}`
+    : `https://redeflixapi.bar/serie/${encodeURIComponent(tmdbId)}/${encodeURIComponent(season)}/${encodeURIComponent(episode)}`;
+  const requestHeaders = {
+    'User-Agent': USER_AGENT,
+    Accept: 'text/html,application/xhtml+xml'
+  };
+  const postHeaders = {
+    ...requestHeaders,
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    'X-Requested-With': 'RedeFlixPlayer',
+    Referer: pageUrl,
+    Origin: 'https://redeflixapi.bar'
+  };
+  const getOne = async (server) => {
+    if (signal?.aborted) return null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    const abortFromParent = () => controller.abort(signal?.reason);
+    signal?.addEventListener('abort', abortFromParent, { once: true });
+    try {
+      const pageResponse = await undiciFetch(pageUrl, {
+        method: 'GET', dispatcher: upstreamAgent, signal: controller.signal, headers: requestHeaders
+      });
+      if (!pageResponse.ok) return null;
+      const html = await pageResponse.text();
+      const ticket = html.match(/var\s+playbackResolveTicket\s*=\s*"([^"]+)"/i)?.[1];
+      if (!ticket) return null;
+      const resolvedResponse = await undiciFetch('https://redeflixapi.bar/playback-resolve.php', {
+        method: 'POST', dispatcher: upstreamAgent, signal: controller.signal,
+        headers: postHeaders, body: JSON.stringify({ ticket, server })
+      });
+      if (!resolvedResponse.ok) return null;
+      const resolved = await resolvedResponse.json();
+      if (!resolved?.launchTicket) return null;
+      const sourceResponse = await undiciFetch('https://redeflixapi.bar/playerkys/source.php', {
+        method: 'POST', dispatcher: upstreamAgent, signal: controller.signal,
+        headers: postHeaders, body: JSON.stringify({ ticket: resolved.launchTicket })
+      });
+      if (!sourceResponse.ok) return null;
+      const source = await sourceResponse.json();
+      const url = typeof source?.url === 'string' ? source.url : '';
+      if (!/^https?:\/\//i.test(url) || !/\.mp4(?:[?#]|$)/i.test(url)) return null;
+      if (!await isDirectPublicMediaUrl(url, 'mp4')) return null;
+      const language = server === 'legendado' ? 'Legendado' : 'Dublado';
+      return {
+        ...providerStreamLabels('RedeFlix', {
+          label: `${language} • MP4`,
+          quality: '1080p',
+          languageOverride: language
+        }),
+        url,
+        behaviorHints: { notWebReady: true }
+      };
+    } catch (error) {
+      sourceLog('redeflix-error', { type, tmdbId, server, message: String(error?.message || 'falha').slice(0, 120) });
+      return null;
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abortFromParent);
+      controller.abort();
+    }
+  };
+  // Cada ticket é de uso único; dublado e legendado precisam de tickets separados.
+  return (await Promise.all(['default', 'legendado'].map(getOne))).filter(Boolean);
 }
 
 async function cachedM3uCatalog(key, factory) {
@@ -5431,7 +5619,7 @@ builder.defineCatalogHandler(
       if (LiveTv.handlesCatalog(id)) return await LiveTv.catalog(type, id, extra);
       const xtreamType = id === 'm3u-movies' ? 'movie' : id === 'm3u-series' ? 'series' : id === 'm3u-tv' ? 'tv' : type;
       if (['movie', 'series', 'tv'].includes(xtreamType)) {
-        if (LOCAL_PLAYLIST && xtreamType !== 'tv') {
+        if (LOCAL_PLAYLIST && !XTREAM_ENABLED && xtreamType !== 'tv') {
           try {
             await ensurePlaylist();
             const genre = String(extra.genre || '').trim().toLowerCase();
@@ -5449,13 +5637,22 @@ builder.defineCatalogHandler(
             sourceLog('catalog-local-primary-error', { type: xtreamType, error: String(localPrimaryError.message || '').slice(0, 120) });
           }
         }
+        if (xtreamType !== 'tv' && XTREAM_ENABLED) {
+          try {
+            const metas = await xtreamCatalog(xtreamType, extra);
+            sourceLog('catalog-primary-xtream-ready', { type: xtreamType, source: XTREAM_SOURCE_NAME, count: metas.length });
+            return { metas };
+          } catch (xtreamPrimaryError) {
+            sourceLog('catalog-primary-xtream-error', { type: xtreamType, source: XTREAM_SOURCE_NAME, error: String(xtreamPrimaryError.message || '').slice(0, 120) });
+          }
+        }
         if (xtreamType !== 'tv') {
           try {
-            const metas = await singleSourceM3uCatalog('xtream-cdn4k-live-89625', xtreamType, extra);
-            sourceLog('catalog-primary-m3u-ready', { type: xtreamType, source: 'CDN4K.live 89625', count: metas.length });
+            const metas = await singleSourceM3uCatalog('xtream-cdn4k-us-89625', xtreamType, extra);
+            sourceLog('catalog-primary-m3u-ready', { type: xtreamType, source: 'CDN4K.us 89625', count: metas.length });
             return { metas };
           } catch (m3uPrimaryError) {
-            sourceLog('catalog-primary-m3u-error', { type: xtreamType, source: 'CDN4K.live 89625', error: String(m3uPrimaryError.message || '').slice(0, 120) });
+            sourceLog('catalog-primary-m3u-error', { type: xtreamType, source: 'CDN4K.us 89625', error: String(m3uPrimaryError.message || '').slice(0, 120) });
           }
         }
         if (xtreamType !== 'tv') {
@@ -5484,7 +5681,7 @@ builder.defineCatalogHandler(
           console.warn(`[XTREAM] CDN4K indisponível para ${xtreamType}: ${error.message}`);
           sourceLog('xtream-catalog-fallback', { type: xtreamType, from: 'CDN4K', error: String(error.message || '').slice(0, 120) });
           if (xtreamType !== 'tv') {
-            for (const fallbackId of ['cdn4k-live-89625', 'cdn4k-live-aripai', 'cms-central']) {
+            for (const fallbackId of ['cdn4k-us-89625', 'cdn4k-us-aripai', 'cms-central']) {
               const fallbackSource = XTREAM_SOURCES.find((source) => source.id === fallbackId);
               if (!fallbackSource) continue;
               try {
@@ -5511,7 +5708,7 @@ builder.defineCatalogHandler(
             return { metas: [] };
           }
           if (xtreamType === 'tv') {
-            for (const cdn4kUsId of ['cdn4k-live-89625', 'cdn4k-live-aripai']) {
+            for (const cdn4kUsId of ['cdn4k-us-89625', 'cdn4k-us-aripai']) {
               const cdn4kUs = XTREAM_SOURCES.find((source) => source.id === cdn4kUsId);
               if (!cdn4kUs) continue;
               try {
@@ -5534,7 +5731,7 @@ builder.defineCatalogHandler(
                 sourceLog('xtream-catalog-fallback-error', { type: 'tv', source: smartCms.sourceName || smartCms.id, error: String(fallbackError.message || '').slice(0, 120) });
               }
             }
-            for (const cdn4kUsM3uId of ['xtream-cdn4k-live-89625', 'xtream-cdn4k-live-aripai']) {
+            for (const cdn4kUsM3uId of ['xtream-cdn4k-us-89625', 'xtream-cdn4k-us-aripai']) {
               try {
                 const metas = await singleSourceTvCatalog(cdn4kUsM3uId, extra);
                 sourceLog('xtream-catalog-fallback-ready', {
@@ -5550,15 +5747,15 @@ builder.defineCatalogHandler(
               }
             }
             try {
-              const metas = await singleSourceTvCatalog('xtream-cdn4k-live', extra);
+              const metas = await singleSourceTvCatalog('xtream-cdn4k-us', extra);
               sourceLog('xtream-catalog-fallback-ready', {
-                type: 'tv', source: 'CDN4K.live', mode: 'm3u', count: metas.length
+                type: 'tv', source: 'CDN4K.us', mode: 'm3u', count: metas.length
               });
               return { metas };
             } catch (cdn4kUsM3uError) {
-              console.warn(`[XTREAM] CDN4K.live M3U indisponível para TV: ${cdn4kUsM3uError.message}`);
+              console.warn(`[XTREAM] CDN4K.us M3U indisponível para TV: ${cdn4kUsM3uError.message}`);
               sourceLog('xtream-catalog-fallback-error', {
-                type: 'tv', source: 'CDN4K.live', mode: 'm3u',
+                type: 'tv', source: 'CDN4K.us', mode: 'm3u',
                 error: String(cdn4kUsM3uError.message || '').slice(0, 120)
               });
               return { metas: [] };
@@ -6229,10 +6426,9 @@ if (require.main === module) {
   const server = app.listen(PORT, () => {
     console.log(`HTTP addon accessible at: http://127.0.0.1:${PORT}/manifest.json`);
     console.log(`Iracemaflix addon iniciado na porta ${PORT}`);
-    console.log(`M3U: ${M3U_URL.replace(/([?&](?:username|password)=)[^&]+/gi, '$1***')}`);
+    console.log('M3U: desativado (somente Xtream/API)');
     console.log(`Cache: ${CACHE_TTL_MS} ms`);
-    console.log(`Timeout M3U: ${M3U_TIMEOUT_MS} ms`);
-    console.log(`Busca IMDb: total ${IMDB_STREAM_TIMEOUT_MS} ms; metadata ${IMDB_METADATA_TIMEOUT_MS} ms; Xtream ${XTREAM_IMDB_TIMEOUT_MS} ms; M3U ${IMDB_M3U_TIMEOUT_MS} ms; leitura de fonte M3U ${M3U_SOURCE_TIMEOUT_MS} ms`);
+    console.log(`Busca IMDb: total ${IMDB_STREAM_TIMEOUT_MS} ms; metadata ${IMDB_METADATA_TIMEOUT_MS} ms; Xtream ${XTREAM_IMDB_TIMEOUT_MS} ms; modo somente Xtream/API`);
     console.log(`TMDB: ${TMDB_API_KEY ? `ativado (${TMDB_LANGUAGE})` : 'sem chave; Cinemeta fornece o ID IMDb/TMDb'}`);
   });
   server.on('error', (error) => { console.error('Não foi possível iniciar o addon:', error); process.exitCode = 1; });
