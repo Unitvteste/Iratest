@@ -6626,7 +6626,344 @@ footer{margin-top:3.5rem;padding-top:1.4rem;border-top:1px solid var(--line);col
 <section class="hero">
 <div class="hbg" id="hbg" aria-hidden="true"></div>
 <div>
-<h1><span class="w" style="--i:0">Assista</span> <span class="w" style="--i:1">ao</span> <span class="w" style="--i:2">que<
+<h1><span class="w" style="--i:0">Assista</span> <span class="w" style="--i:1">ao</span> <span class="w" style="--i:2">que</span> <span class="w" style="--i:3">você</span> <span class="w grad" style="--i:4">ama.</span></h1>
+<p class="sub rv">Filmes, séries e canais ao vivo em português. Abra o catálogo para <span class="type" id="typed"></span></p>
+<div class="cta rv"><a class="big" href="https://iracemaflix.eu.cc/" target="_blank" rel="noreferrer">Abrir site Iracemaflix <span aria-hidden="true">↗</span></a><a class="big ghost" href="#servidores">Instalar no Stremio</a></div>
+<div class="chips rv"><span class="chip k">4K UHD</span><span class="chip"><i></i>Dublado</span><span class="chip"><i></i>Ao vivo</span><span class="chip"><i></i>Play rápido</span></div>
+</div>
+</section>
+
+<div class="reel" aria-hidden="true"><div class="track" id="track"></div></div>
+<div class="posters" id="posters" aria-hidden="true"></div>
+
+<section class="sec"><h2>Tudo em um só lugar</h2><p>Catálogo completo, feito para abrir rápido em qualquer tela.</p>
+<div class="feats">
+<div class="feat"><div class="ic">⚡</div><h3>Play rápido</h3><p>Escolha o título e comece a assistir em segundos, sem espera longa.</p></div>
+<div class="feat"><div class="ic">🎞️</div><h3>Qualidade até 4K</h3><p>Imagem em alta definição, com 4K nos títulos que oferecem essa opção.</p></div>
+<div class="feat"><div class="ic">🎙️</div><h3>Dublado em português</h3><p>Filmes, séries e canais com áudio dublado, para assistir sem ler legenda.</p></div>
+<div class="feat"><div class="ic">🎬</div><h3>Filmes e séries</h3><p>Lançamentos, clássicos e maratonas, com novidades chegando toda semana.</p></div>
+<div class="feat"><div class="ic">📡</div><h3>TV ao vivo</h3><p>Canais de notícias, esportes, filmes, infantil e muito mais, 24 horas por dia.</p></div>
+<div class="feat"><div class="ic">📱</div><h3>Em qualquer tela</h3><p>Funciona na TV, no celular, no tablet e no computador com o Stremio.</p></div>
+</div></section>
+
+<section class="sec"><div class="shead"><h2>Filmes em alta</h2><div class="arr"><button type="button" class="btn" data-r="rail-m" data-d="-1" aria-label="Voltar">‹</button><button type="button" class="btn" data-r="rail-m" data-d="1" aria-label="Avançar">›</button></div></div><div class="rail" id="rail-m"></div></section>
+<section class="sec" style="margin-top:1.5rem"><div class="shead"><h2>Séries em alta</h2><div class="arr"><button type="button" class="btn" data-r="rail-s" data-d="-1" aria-label="Voltar">‹</button><button type="button" class="btn" data-r="rail-s" data-d="1" aria-label="Avançar">›</button></div></div><div class="rail" id="rail-s"></div></section>
+
+<section class="sec" style="margin-top:1.5rem"><div class="shead"><h2>Animes</h2><div class="arr"><button type="button" class="btn" data-r="rail-a" data-d="-1" aria-label="Voltar">‹</button><button type="button" class="btn" data-r="rail-a" data-d="1" aria-label="Avançar">›</button></div></div><div class="rail" id="rail-a"></div></section>
+<section class="sec" style="margin-top:1.5rem"><div class="shead"><h2>Doramas</h2><div class="arr"><button type="button" class="btn" data-r="rail-d" data-d="-1" aria-label="Voltar">‹</button><button type="button" class="btn" data-r="rail-d" data-d="1" aria-label="Avançar">›</button></div></div><div class="rail" id="rail-d"></div></section>
+
+<section class="sec"><h2>Eventos do dia</h2><p>Agenda esportiva de hoje, com horários de Brasília.</p>
+<div class="tabs" id="evtabs"></div>
+<div class="evs" id="evgrid" style="margin-top:1.2rem">Carregando agenda...</div></section>
+
+<section class="sec"><h2>TV ao vivo</h2><p>Escolha o tipo de canal e assista agora.</p>
+<div class="tv">
+<div class="tile"><em>AO VIVO</em><b>📰</b><span>Notícias</span></div>
+<div class="tile"><em>AO VIVO</em><b>⚽</b><span>Esportes</span></div>
+<div class="tile"><em>AO VIVO</em><b>🎥</b><span>Filmes e séries</span></div>
+<div class="tile"><em>AO VIVO</em><b>🧸</b><span>Infantil</span></div>
+<div class="tile"><em>AO VIVO</em><b>🌎</b><span>Documentários</span></div>
+<div class="tile"><em>AO VIVO</em><b>🎵</b><span>Música</span></div>
+<div class="tile"><em>AO VIVO</em><b>🎭</b><span>Variedades</span></div>
+<div class="tile"><em>AO VIVO</em><b>🌸</b><span>Animes</span></div>
+<div class="tile"><em>AO VIVO</em><b>💖</b><span>Doramas</span></div>
+<div class="tile"><em>AO VIVO</em><b>📹</b><span>Realitys</span></div>
+</div></section>
+
+<section class="sec" id="servidores"><h2>Instale no Stremio</h2><p>Escolha um manifesto e toque em Adicionar.</p>
+<div class="servers">
+<article class="card"><div class="in"><div class="kind">Servidor primário</div><h3>BeamUp</h3><div class="url">https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json</div><div class="st"><i></i>Estável<div class="bars"><b></b><b></b><b></b><b></b></div></div><div class="act"><a class="btn main" href="stremio://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json">Adicionar</a><a class="btn" href="https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json" target="_blank" rel="noreferrer">Abrir</a><button type="button" class="btn copy" data-copy="https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json">Copiar</button></div></div></article>
+<article class="card"><div class="in"><div class="kind">Servidor secundário</div><h3>Manus</h3><div class="url">https://iracemaflix-k8ngt6ft.manus.space/manifest.json</div><div class="st"><i></i>Estável<div class="bars"><b></b><b></b><b></b><b></b></div></div><div class="act"><a class="btn main" href="stremio://iracemaflix-k8ngt6ft.manus.space/manifest.json">Adicionar</a><a class="btn" href="https://iracemaflix-k8ngt6ft.manus.space/manifest.json" target="_blank" rel="noreferrer">Abrir</a><button type="button" class="btn copy" data-copy="https://iracemaflix-k8ngt6ft.manus.space/manifest.json">Copiar</button></div></div></article>
+<article class="card"><div class="in"><div class="kind">Servidor alternativo</div><h3>Domínio próprio</h3><div class="url">https://iracemaflix-addon.eu.cc/manifest.json</div><div class="st"><i></i>Estável<div class="bars"><b></b><b></b><b></b><b></b></div></div><div class="act"><a class="btn main" href="stremio://iracemaflix-addon.eu.cc/manifest.json">Adicionar</a><a class="btn" href="https://iracemaflix-addon.eu.cc/manifest.json" target="_blank" rel="noreferrer">Manifesto</a><button type="button" class="btn copy" data-copy="https://iracemaflix-addon.eu.cc/manifest.json">Copiar</button></div></div></article>
+</div>
+<div class="note"><strong>Dica:</strong> a bolinha verde indica o endereço configurado. Se um servidor der erro ao reproduzir, remova o addon antigo e adicione de novo usando outro manifesto.</div>
+</section>
+
+<section class="sec"><h2>Como instalar</h2>
+<div class="steps" id="steps">
+<div class="step"><i>1</i><div><h4>Escolha o servidor</h4><p>Comece pelo recomendado.</p></div></div>
+<div class="step"><i>2</i><div><h4>Toque em Adicionar</h4><p>O Stremio abre e pede confirmação.</p></div></div>
+<div class="step"><i>3</i><div><h4>Confirme e assista</h4><p>O catálogo aparece na tela inicial.</p></div></div>
+</div>
+<div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="true">Android</button><button class="tab" role="tab" aria-selected="false">TV</button><button class="tab" role="tab" aria-selected="false">iPhone</button><button class="tab" role="tab" aria-selected="false">PC</button></div>
+<div class="panel"><strong>Android:</strong> toque em Adicionar. Se o Stremio não abrir, use Copiar, abra o app, vá em Addons e cole o link.</div>
+<div class="panel" hidden><strong>TV:</strong> use QR ou Copiar num servidor, abra o Stremio da TV, entre em Addons e cole o link no campo de busca.</div>
+<div class="panel" hidden><strong>iPhone:</strong> toque em Copiar, abra o app Stremio, entre em Addons e cole o link no campo de busca.</div>
+<div class="panel" hidden><strong>PC:</strong> clique em Adicionar com o Stremio instalado. Se nada abrir, copie o link e cole em Addons.</div>
+</section>
+
+<section class="sec"><h2>Dúvidas</h2>
+<details><summary>Não reproduz, e agora?</summary><p>Remova o addon antigo no Stremio e adicione de novo usando outro manifesto da lista.</p></details>
+<details><summary>O botão Adicionar não abre nada</summary><p>Instale o Stremio no aparelho ou use Copiar e cole o link em Addons.</p></details>
+<details><summary>Como instalar na TV?</summary><p>Toque em QR no servidor, aponte a câmera ou copie o link e cole no Stremio da TV.</p></details>
+<details><summary>Dá para navegar com o controle remoto?</summary><p>Sim. As setas do controle movem o foco entre botões e o OK confirma.</p></details>
+</section>
+
+<dialog id="qr"><h3 style="margin:0;font-family:Unbounded,sans-serif" id="qrt">QR</h3><div id="qrbox"></div><p style="margin:0 0 .9rem;color:var(--muted);font-size:.85rem">Aponte a câmera para abrir o manifesto.</p><button class="btn main" id="qrx">Fechar</button></dialog>
+<footer><div class="fnote"><strong>Streaming grátis, fácil, prático e ágil.</strong> O Iracemaflix não armazena nenhum conteúdo: apenas conecta quem quer assistir a quem fornece, reunindo conteúdos disponibilizados por terceiros na internet.</div><span>© <span id="yr"></span> Iracemaflix</span></footer>
+</main>
+
+<script>
+/* ============ PÔSTERES: cole aqui as URLs das suas imagens ============
+   img: link direto da imagem (ex.: https://image.tmdb.org/t/p/w342/xxxx.jpg)
+   Se img ficar vazio ou o link falhar, aparece uma capa animada no lugar. */
+var POSTERS=[
+ {t:'Ação',h:215,g:'⚡',img:''},{t:'Aventura',h:160,g:'✦',img:''},
+ {t:'Terror',h:350,g:'☾',img:''},{t:'Comédia',h:40,g:'☺',img:''},
+ {t:'Ficção',h:265,g:'◈',img:''},{t:'Romance',h:320,g:'♥',img:''},
+ {t:'Drama',h:200,g:'❖',img:''},{t:'Animação',h:140,g:'✿',img:''},
+ {t:'Suspense',h:0,g:'◐',img:''},{t:'Fantasia',h:280,g:'✧',img:''}
+];
+/* ====================================================================== */
+
+function mk(p,cls){
+  var d=document.createElement('div');d.className='pst '+(cls||'');
+  d.style.background='linear-gradient(160deg,hsl('+p.h+',80%,38%),hsl('+(p.h+50)+',70%,10%))';
+  d.innerHTML='<b>'+p.g+'</b><span>'+p.t+'</span>';
+  if(p.img){var im=new Image();im.alt=p.t;im.referrerPolicy='no-referrer';
+    im.onload=function(){d.classList.add('has');d.prepend(im)};im.src=p.img}
+  return d}
+function row(list,cls){var r=document.createElement('div');r.className='prow '+cls;list.concat(list).forEach(function(p){r.appendChild(mk(p))});return r}
+var TMDB_KEY='12a263eb78c5a66bf238a09bf48a413b';
+var ps=document.getElementById('posters');
+function build(list){
+  ps.innerHTML='';
+  ps.appendChild(row(list,''));ps.appendChild(row(list.slice().reverse(),'rev'));
+}
+build(POSTERS);
+/* Em alta na semana (TMDB). Se falhar, ficam as capas animadas. */
+fetch('https://api.themoviedb.org/3/trending/all/week?language=pt-BR&api_key='+TMDB_KEY)
+  .then(function(r){return r.json()})
+  .then(function(d){
+    var l=(d.results||[]).filter(function(x){return x.poster_path}).slice(0,20).map(function(x,i){
+      return {t:x.title||x.name,h:(i*37)%360,g:'▶',img:'https://image.tmdb.org/t/p/w342'+x.poster_path}});
+    if(l.length>=6)build(l);
+  }).catch(function(){});
+
+/* Prateleiras de filmes e séries (TMDB) */
+function fill(id,items){
+  var r=document.getElementById(id);r.innerHTML='';
+  items.forEach(function(x,n){
+    var a=document.createElement('a');a.className='it';a.style.setProperty('--n',n);
+    if(x.href){a.href=x.href;a.target='_blank';a.rel='noreferrer'}else a.tabIndex=0;
+    a.appendChild(mk(x));
+    var s=document.createElement('strong');s.textContent=x.t;a.appendChild(s);
+    if(x.r){var m=document.createElement('small');m.textContent='★ '+x.r;a.appendChild(m)}
+    r.appendChild(a)})}
+function shelf(id,type,q){
+  fill(id,POSTERS);
+  fetch('https://api.themoviedb.org/3/'+(q||'trending/'+type+'/week?')+'&language=pt-BR&api_key='+TMDB_KEY)
+    .then(function(r){return r.json()})
+    .then(function(d){
+      var l=(d.results||[]).filter(function(x){return x.poster_path}).slice(0,18).map(function(x,i){
+        return {t:x.title||x.name,h:(i*37)%360,g:'▶',img:'https://image.tmdb.org/t/p/w342'+x.poster_path,
+          href:'https://www.themoviedb.org/'+type+'/'+x.id,r:x.vote_average?x.vote_average.toFixed(1):''}});
+      if(l.length>=6)fill(id,l)}).catch(function(){})}
+shelf('rail-m','movie');shelf('rail-s','tv');
+shelf('rail-a','tv','discover/tv?with_genres=16&with_original_language=ja&sort_by=popularity.desc');
+shelf('rail-d','tv','discover/tv?with_genres=18&with_original_language=ko&sort_by=popularity.desc');
+
+/* Eventos do dia (Rei dos Embeds): somente agenda, sem links de transmissão */
+var EV=[],evg=document.getElementById('evgrid'),evt=document.getElementById('evtabs');
+function team(n,src){var d=document.createElement('div');d.className='tm';
+  if(src){var im=new Image();im.alt='';im.referrerPolicy='no-referrer';im.onerror=function(){im.remove()};im.src=src;d.appendChild(im)}
+  var s=document.createElement('span');s.textContent=n;d.appendChild(s);return d}
+function evRender(cat){
+  evg.innerHTML='';
+  var l=EV.filter(function(e){return cat==='Todos'||e.category===cat}).slice(0,30);
+  if(!l.length){evg.textContent='Nenhum evento para hoje.';return}
+  l.forEach(function(e){
+    var c=document.createElement('div');c.className='ev';
+    var h=document.createElement('div');h.className='evh';
+    var b=document.createElement('span');b.className='bd'+(e.status==='live'?' live':'');
+    b.textContent=e.status==='live'?'AO VIVO':(e.status==='upcoming'?e.start_time.slice(11,16):'Encerrado');
+    var s=document.createElement('small');s.textContent=[e.competition,e.category].filter(Boolean).join(' · ');
+    h.appendChild(b);h.appendChild(s);c.appendChild(h);
+    if(e.time1_name&&e.time2_name&&e.visual_model==='versus'){
+      var v=document.createElement('div');v.className='vs';
+      var x=document.createElement('b');x.textContent='x';
+      v.appendChild(team(e.time1_name,e.time1));v.appendChild(x);v.appendChild(team(e.time2_name,e.time2));c.appendChild(v)}
+    else{var t=document.createElement('div');t.className='evtt';t.textContent=e.title;c.appendChild(t)}
+    evg.appendChild(c)})}
+fetch('https://reidosembeds.lat/api/eventos').then(function(r){return r.json()}).then(function(d){
+  var today=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
+  EV=(d.data||[]).filter(function(e){return e.status==='live'||(e.start_time||'').slice(0,10)===today});
+  EV.sort(function(a,b){return (b.status==='live')-(a.status==='live')||a.start_time.localeCompare(b.start_time)});
+  var cats=['Todos'];EV.forEach(function(e){if(e.category&&cats.indexOf(e.category)<0)cats.push(e.category)});
+  cats.forEach(function(k,i){var f=document.createElement('button');f.type='button';f.className='fchip';f.textContent=k;f.setAttribute('aria-pressed',i===0);
+    f.addEventListener('click',function(){evt.querySelectorAll('.fchip').forEach(function(z){z.setAttribute('aria-pressed',z===f)});evRender(k)});evt.appendChild(f)});
+  evRender('Todos');
+}).catch(function(){evg.textContent='Não foi possível carregar a agenda agora.'});
+document.querySelectorAll('[data-r]').forEach(function(b){b.addEventListener('click',function(){
+  var r=document.getElementById(b.dataset.r);r.scrollBy({left:b.dataset.d*r.clientWidth*.8,behavior:'smooth'})})});
+
+/* Fundo animado do topo: imagens em alta com zoom lento */
+(function(){
+  var box=document.getElementById('hbg'),sl=[],cur=0,cap=document.createElement('div');
+  cap.className='hcap';box.appendChild(cap);
+  function show(i){sl.forEach(function(s,k){s.el.classList.toggle('on',k===i)});cap.textContent=sl[i].cap||''}
+  function add(src,c){var im=new Image();im.alt='';im.className='hs';im.referrerPolicy='no-referrer';
+    im.onload=function(){box.insertBefore(im,cap);sl.push({el:im,cap:c});if(sl.length===1)show(0)};im.src=src}
+  fetch('https://api.themoviedb.org/3/trending/all/week?language=pt-BR&api_key='+TMDB_KEY)
+    .then(function(r){return r.json()})
+    .then(function(d){(d.results||[]).filter(function(x){return x.backdrop_path}).slice(0,8).forEach(function(x){
+      add('https://image.tmdb.org/t/p/w780'+x.backdrop_path,x.title||x.name)})}).catch(function(){});
+  setInterval(function(){if(sl.length>1){cur=(cur+1)%sl.length;show(cur)}},6000);
+})();
+
+/* Entrada suave ao rolar */
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('v');io.unobserve(e.target)}})},{threshold:.15});
+document.querySelectorAll('.feat,.tile').forEach(function(el,i){el.style.transitionDelay=(i%6)*.08+'s';io.observe(el)});
+
+document.getElementById('yr').textContent=new Date().getFullYear();
+var words=['Filmes','Séries','Ao vivo','Animes','Lançamentos','Clássicos','Documentários','Esportes','Infantil','Novelas'];
+document.getElementById('track').innerHTML=words.concat(words).map(function(w){return '<span>'+w+'</span>'}).join('');
+
+var phrases=['assistir filmes.','maratonar séries.','ver canais ao vivo.','ir direto ao que importa.'];
+var el=document.getElementById('typed'),pi=0,ci=0,del=false;
+function tick(){var p=phrases[pi];el.textContent=p.slice(0,ci);
+  if(!del&&ci===p.length){del=true;return setTimeout(tick,1500)}
+  if(del&&ci===0){del=false;pi=(pi+1)%phrases.length}
+  ci+=del?-1:1;setTimeout(tick,del?28:60)}
+tick();
+
+document.querySelectorAll('.copy').forEach(function(b){b.addEventListener('click',async function(){
+  var o=b.textContent;
+  try{await navigator.clipboard.writeText(b.dataset.copy);b.textContent='Copiado';b.classList.add('copied')}catch(e){b.textContent='Selecione o link'}
+  setTimeout(function(){b.textContent=o;b.classList.remove('copied')},1600)})});
+
+document.querySelectorAll('.card').forEach(function(c){var i=c.querySelector('.in');
+  c.addEventListener('pointermove',function(e){if(e.pointerType==='touch')return;
+    var r=c.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;
+    i.style.setProperty('--mx',x*100+'%');i.style.setProperty('--my',y*100+'%');
+    c.style.transform='rotateX('+((.5-y)*8)+'deg) rotateY('+((x-.5)*10)+'deg) translateZ(6px)'});
+  c.addEventListener('pointerleave',function(){c.style.transform=''})});
+
+new IntersectionObserver(function(e,o){if(e[0].isIntersecting){e[0].target.classList.add('on');o.disconnect()}},{threshold:.5}).observe(document.getElementById('steps'));
+
+var tabs=document.querySelectorAll('.tab'),pn=document.querySelectorAll('.panel');
+tabs.forEach(function(t,i){t.addEventListener('click',function(){tabs.forEach(function(x,k){x.setAttribute('aria-selected',k===i);pn[k].hidden=k!==i})})});
+
+var qd=document.getElementById('qr'),qb=document.getElementById('qrbox');
+document.querySelectorAll('.copy').forEach(function(c){
+  var q=document.createElement('button');q.type='button';q.className='btn';q.textContent='QR';
+  q.addEventListener('click',function(){qb.innerHTML='';document.getElementById('qrt').textContent=c.closest('.in').querySelector('h3').textContent;
+    try{new QRCode(qb,{text:c.dataset.copy,width:180,height:180})}catch(e){qb.textContent='QR indisponível'}
+    qd.showModal()});
+  c.after(q)});
+document.getElementById('qrx').onclick=function(){qd.close()};
+qd.addEventListener('click',function(e){if(e.target===qd)qd.close()});
+
+/* Navegação por setas (controle remoto de TV) */
+document.addEventListener('keydown',function(e){
+  var k={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]}[e.key];
+  if(!k||qd.open)return;
+  var els=[].slice.call(document.querySelectorAll('a[href],button,summary')).filter(function(x){return x.offsetParent});
+  var cur=document.activeElement;
+  if(els.indexOf(cur)<0){els[0].focus();e.preventDefault();return}
+  var r=cur.getBoundingClientRect(),cx0=r.left+r.width/2,cy0=r.top+r.height/2,best,bd=1e9;
+  els.forEach(function(x){if(x===cur)return;var b=x.getBoundingClientRect(),dx=b.left+b.width/2-cx0,dy=b.top+b.height/2-cy0,al=dx*k[0]+dy*k[1];
+    if(al<=1)return;var d=al+(Math.abs(dx*k[1])+Math.abs(dy*k[0]))*2;if(d<bd){bd=d;best=x}});
+  if(best){best.focus();best.scrollIntoView({block:'center',behavior:'smooth'});e.preventDefault()}});
+
+/* Barra de progresso */
+var bar=document.getElementById('bar');
+addEventListener('scroll',function(){bar.style.transform='scaleX('+(scrollY/(document.documentElement.scrollHeight-innerHeight||1))+')'},{passive:true});
+
+/* Fundo animado */
+var g=document.getElementById('glow'),cv=document.getElementById('fx'),cx=cv.getContext('2d'),P=[],mouse={x:-999,y:-999},t=0;
+function size(){var d=Math.min(devicePixelRatio||1,2);cv.width=innerWidth*d;cv.height=innerHeight*d;cx.setTransform(d,0,0,d,0,0);
+  var n=Math.min(90,Math.floor(innerWidth*innerHeight/18000));P=[];
+  for(var k=0;k<n;k++)P.push({x:Math.random()*innerWidth,y:Math.random()*innerHeight,vx:(Math.random()-.5)*.35,vy:(Math.random()-.5)*.35})}
+size();addEventListener('resize',size);
+addEventListener('pointermove',function(e){mouse.x=e.clientX;mouse.y=e.clientY;g.style.left=e.clientX+'px';g.style.top=e.clientY+'px'});
+function frame(){t+=.01;var w=innerWidth,h=innerHeight;cx.clearRect(0,0,w,h);
+  var hor=h*.62;cx.strokeStyle='rgba(52,140,254,.10)';cx.lineWidth=1;
+  for(var i=-14;i<=14;i++){cx.beginPath();cx.moveTo(w/2+i*28,hor);cx.lineTo(w/2+i*(w/10),h);cx.stroke()}
+  for(var j=0;j<10;j++){var f=((j+t*4)%10)/10,y=hor+(h-hor)*f*f;cx.globalAlpha=f;cx.beginPath();cx.moveTo(0,y);cx.lineTo(w,y);cx.stroke()}
+  cx.globalAlpha=1;
+  var sy=(t*60%(h+200))-100,sg=cx.createLinearGradient(0,sy-60,0,sy+60);
+  sg.addColorStop(0,'rgba(34,227,196,0)');sg.addColorStop(.5,'rgba(34,227,196,.07)');sg.addColorStop(1,'rgba(34,227,196,0)');
+  cx.fillStyle=sg;cx.fillRect(0,sy-60,w,120);
+  for(var a=0;a<P.length;a++){var p=P[a];p.x+=p.vx;p.y+=p.vy;
+    if(p.x<0||p.x>w)p.vx*=-1;if(p.y<0||p.y>h)p.vy*=-1;
+    var dx=p.x-mouse.x,dy=p.y-mouse.y,d=Math.hypot(dx,dy);if(d<140){p.x+=dx/d*1.2;p.y+=dy/d*1.2}
+    cx.fillStyle='rgba(110,172,255,.8)';cx.beginPath();cx.arc(p.x,p.y,1.6,0,6.283);cx.fill();
+    for(var b=a+1;b<P.length;b++){var q=P[b],l=Math.hypot(p.x-q.x,p.y-q.y);
+      if(l<120){cx.strokeStyle='rgba(52,140,254,'+(.28*(1-l/120))+')';cx.beginPath();cx.moveTo(p.x,p.y);cx.lineTo(q.x,q.y);cx.stroke()}}
+    if(d<160){cx.strokeStyle='rgba(34,227,196,'+(.5*(1-d/160))+')';cx.beginPath();cx.moveTo(p.x,p.y);cx.lineTo(mouse.x,mouse.y);cx.stroke()}}
+  requestAnimationFrame(frame)}
+if(!matchMedia('(prefers-reduced-motion:reduce)').matches)frame();
+</script>
+<!-- ===== ASSISTENTE (Kafox) ===== -->
+<style>
+#ai-fab{position:fixed;right:max(1rem,env(safe-area-inset-right));bottom:max(1rem,env(safe-area-inset-bottom));z-index:60;width:3.4rem;height:3.4rem;border:0;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--b));color:#fff;font-size:1.4rem;cursor:pointer;box-shadow:0 .6rem 1.8rem #348cfe66}
+#ai-fab:focus-visible,#ai-send:focus-visible{outline:2px solid var(--c);outline-offset:3px}
+#ai{position:fixed;right:max(1rem,env(safe-area-inset-right));bottom:5.2rem;z-index:60;width:min(24rem,calc(100vw - 2rem));height:min(32rem,calc(100dvh - 7rem));display:none;flex-direction:column;border:1px solid var(--line);border-radius:1.1rem;background:#0b1120f2;backdrop-filter:blur(12px);box-shadow:0 1.5rem 4rem #000a;overflow:hidden;font:400 .9rem Manrope,sans-serif;color:var(--text)}
+#ai.on{display:flex}
+#ai header{display:flex;gap:.5rem;align-items:center;padding:.7rem .9rem;border-bottom:1px solid var(--line);font-weight:800}
+#ai header b{flex:1;font-family:Unbounded,sans-serif;font-size:.8rem}
+#ai select{max-width:10.5rem;background:#141d33;color:var(--text);border:1px solid #33446a;border-radius:.6rem;padding:.3rem .4rem;font:inherit;font-size:.78rem}
+#ai-log{flex:1;overflow-y:auto;padding:.9rem;display:flex;flex-direction:column;gap:.6rem}
+.am{max-width:85%;padding:.55rem .8rem;border-radius:.9rem;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.am.u{align-self:flex-end;background:var(--a);color:#fff}
+.am.b{align-self:flex-start;background:#141d33}
+.am.e{color:#ff9b9b}
+#ai form{display:flex;gap:.5rem;padding:.7rem;border-top:1px solid var(--line)}
+#ai-in{flex:1;min-width:0;background:#05070d;color:var(--text);border:1px solid #33446a;border-radius:.7rem;padding:.6rem .7rem;font:inherit}
+#ai-send{border:0;border-radius:.7rem;padding:0 .9rem;background:var(--a);color:#fff;font-weight:800;cursor:pointer}
+#ai-send:disabled{opacity:.5}
+</style>
+<button id="ai-fab" aria-label="Abrir assistente" aria-expanded="false">✦</button>
+<section id="ai" role="dialog" aria-label="Assistente Iracemaflix">
+<header><b>Assistente</b><select id="ai-model" aria-label="Escolher IA"></select></header>
+<div id="ai-log" aria-live="polite"></div>
+<form id="ai-form"><input id="ai-in" placeholder="Pergunte algo…" maxlength="500" autocomplete="off"><button id="ai-send">Enviar</button></form>
+</section>
+<script>
+(function(){
+/* API gratuita (sem chave). O nome do modelo é a rota: BASE + /api/<modelo>?texto=... */
+var BASE='https://worldecletix.onrender.com';
+var MODELOS='grok-4.7 grok-4-7 grok-4.6 grok-4-6 grok-4-5 gpt-6-astra gpt-6.1-sol gpt-6-sol gpt-6-luna gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna gpt-5.5 gpt-5.4 gpt-5.4-mini gpt-5 gpt-5-chat-latest gpt-4o gpt-4o-2024-11-20 gpt-4.1-mini gpt-4.1-nano gemini-4-argon gemini-3.8-flash gemini-3.7-flash gemini-3.6-flash gemini-3.5-flash gemini-3.1-pro gemini-3.1-pro-preview gemini-3.1-flash-lite gemini-3.1-flash-lite-preview gemini-3-flash gemini-3-flash-preview gemini-2.5-pro gemini-3.1-pro-preview-vertex gemini-2.5-pro-vertex deepseek-v4.1-flash deepseek-v4-pro deepseek-v4-pro-0813 kimi-k3 kimi-k2.7-code kimi-k2.6 glm-5.3-flash glm-5.3 glm-5.2 minimax-m3 qwen3.7-max'.split(' ');
+var FAM={grok:'Grok',gpt:'GPT',gemini:'Gemini',deepseek:'DeepSeek',kimi:'Kimi',glm:'GLM',minimax:'MiniMax',qwen:'Qwen'};
+var SYSTEM='Você é a assistente do Iracemaflix (filmes, séries e canais ao vivo via addon do Stremio). Responda em português, curto e simpático. Ajude a instalar: botão Adicionar, Copiar link e colar em Addons, ou QR na TV.';
+function pick(j){
+  if(typeof j==='string')return j;if(!j||typeof j!=='object')return '';
+  var k=['resposta','response','result','text','texto','answer','message','content','reply','output','data'];
+  for(var i=0;i<k.length;i++){if(j[k[i]]!=null){var v=pick(j[k[i]]);if(v)return v}}
+  if(j.choices&&j.choices[0])return pick(j.choices[0].message||j.choices[0].text);
+  return '';
+}
+function ask(rota,msgs){
+  var ctx=msgs.slice(-4).map(function(m){return (m.role==='user'?'Usuário: ':'Assistente: ')+m.content}).join('\n').slice(-900);
+  var url=BASE+'/api/'+encodeURIComponent(rota)+'?texto='+encodeURIComponent(SYSTEM+'\n\n'+ctx+'\nAssistente:');
+  var c=new AbortController(),t=setTimeout(function(){c.abort()},60000);
+  return fetch(url,{signal:c.signal}).then(function(r){return r.text().then(function(x){
+    clearTimeout(t);var j=x;try{j=JSON.parse(x)}catch(e){}
+    if(!r.ok)throw new Error(r.status===404?'Esse modelo não está disponível. Tente outro.':r.status===429?'Muitas mensagens. Aguarde um instante.':'Erro '+r.status+' nesse modelo. Tente outro.');
+    if(j&&j.success===false)throw new Error(String(j.error||j.message||'Esse modelo falhou. Tente outro.'));var a=String((j&&j.response)||pick(j)||'').trim();if(!a)throw new Error('O modelo respondeu vazio. Tente outro.');return a})},
+    function(){clearTimeout(t);throw new Error('Sem resposta do servidor (pode estar acordando, tente de novo em 1 minuto).')});
+}
+var $=function(i){return document.getElementById(i)},fab=$('ai-fab'),box=$('ai'),log=$('ai-log'),inp=$('ai-in'),btn=$('ai-send'),sel=$('ai-model'),hist=[];
+var grp={};MODELOS.forEach(function(m){var f=m.split(/[-.0-9]/)[0];if(!grp[f]){grp[f]=document.createElement('optgroup');grp[f].label=FAM[f]||f;sel.appendChild(grp[f])}var o=document.createElement('option');o.value=m;o.textContent=m;grp[f].appendChild(o)});
+try{var sv=localStorage.getItem('ai-ia');if(sv&&MODELOS.indexOf(sv)>-1)sel.value=sv}catch(e){}
+sel.onchange=function(){try{localStorage.setItem('ai-ia',sel.value)}catch(e){}};
+function add(t,c){var d=document.createElement('div');d.className='am '+c;d.textContent=t;log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
+add('Oi! Sou a assistente do Iracemaflix. Posso ajudar a instalar no Stremio, celular ou TV.','b');
+fab.onclick=function(){var on=box.classList.toggle('on');fab.setAttribute('aria-expanded',on);if(on)inp.focus()};
+addEventListener('keydown',function(e){if(e.key==='Escape'&&box.classList.contains('on')){box.classList.remove('on');fab.focus()}});
+$('ai-form').onsubmit=function(e){
+  e.preventDefault();var q=inp.value.trim();if(!q||btn.disabled)return;
+  inp.value='';add(q,'u');hist.push({role:'user',content:q});hist=hist.slice(-10);
+  btn.disabled=true;var w=add('…','b');
+  ask(sel.value,hist).then(function(a){w.textContent=a;hist.push({role:'assistant',content:a})})
+  .catch(function(er){w.className='am e';w.textContent=er.message||'Falha de conexão.';hist.pop()})
+  .then(function(){btn.disabled=false;log.scrollTop=log.scrollHeight});
+};
+})();
+</script>
+</body>
+</html>
 `);
 });
 if (require.main === module) {
