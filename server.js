@@ -6077,9 +6077,6 @@ builder.defineStreamHandler(
         // de tempo suficiente para o embed responder antes do cancelamento.
         const providerTimeoutMs = Math.min(22000, remainingImdbMs());
         const providerController = new AbortController();
-        // Este sinal é compartilhado por vários provedores executados em paralelo.
-        // O limite padrão de 10 listeners gera falso positivo nesse fan-out controlado.
-        require('node:events').setMaxListeners(0, providerController.signal);
         const emptyM3uMatch = { entry: undefined, entries: [] };
         const findM3uFromCache = async (timeoutMs) => {
           const deadline = Date.now() + timeoutMs;
