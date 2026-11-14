@@ -1,14 +1,17 @@
 {
   "name": "iracemaflix",
-  "version": "1.4.0",
+  "version": "1.2.0",
   "description": "não hospedamos nada, tudo esta na internet para qualquer um poder usar, apenas indexamos",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "sync:kamirama": "node scripts/sync-kamirama.mjs",
+    "check:xtream": "node scripts/check-xtream.mjs",
+    "capture:embedtv": "node scripts/capture-embedtv.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=18.17"
   },
   "dependencies": {
     "express": "^4.21.2",
