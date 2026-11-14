@@ -1,0 +1,183 @@
+{
+  "xtream": {
+    "primary": {
+      "name": "CDN4K",
+      "username": "",
+      "password": ""
+    },
+    "env-pfsv": {
+      "name": "PFSV",
+      "username": "",
+      "password": ""
+    },
+    "env-ua32tt": {
+      "name": "UA32TT",
+      "username": "",
+      "password": ""
+    },
+    "env-sitiomacaco": {
+      "name": "Sítio Macaco",
+      "username": "",
+      "password": ""
+    },
+    "env-beleco": {
+      "name": "Beleco",
+      "username": "",
+      "password": ""
+    },
+    "env-novomundo": {
+      "name": "Novo Mundo",
+      "username": "",
+      "password": ""
+    },
+    "one-tv": {
+      "name": "One TV",
+      "username": "",
+      "password": ""
+    },
+    "kasiner": {
+      "name": "Kasiner",
+      "username": "",
+      "password": ""
+    },
+    "dvdplay2": {
+      "name": "DVDPlay2",
+      "username": "",
+      "password": ""
+    },
+    "urlsync": {
+      "name": "URLSync",
+      "username": "",
+      "password": ""
+    },
+    "cms-central": {
+      "name": "Smart CMS",
+      "username": "",
+      "password": ""
+    },
+    "5ce": {
+      "name": "5CE",
+      "username": "",
+      "password": ""
+    },
+    "oneplayfastpro": {
+      "name": "OnePlayFastPro",
+      "username": "",
+      "password": ""
+    },
+    "elite-factory": {
+      "name": "Elite Factory",
+      "username": "",
+      "password": ""
+    },
+    "cdnplay": {
+      "name": "CDNPlay",
+      "username": "",
+      "password": ""
+    },
+    "gigatvs": {
+      "name": "Giga TVs",
+      "username": "",
+      "password": ""
+    },
+    "clarotv": {
+      "name": "Claro TV",
+      "username": "",
+      "password": ""
+    },
+    "lbplay": {
+      "name": "LB Play",
+      "username": "",
+      "password": ""
+    },
+    "teleflixhd": {
+      "name": "Teleflix HD",
+      "username": "",
+      "password": ""
+    },
+    "ultclub": {
+      "name": "Ult Club",
+      "username": "",
+      "password": ""
+    },
+    "brasilplaytv": {
+      "name": "Brasil Play TV",
+      "username": "",
+      "password": ""
+    },
+    "afg154": {
+      "name": "AFG154",
+      "username": "",
+      "password": ""
+    },
+    "cdn4k-live-89625": {
+      "name": "CDN4K.live 89625",
+      "username": "",
+      "password": ""
+    },
+    "cdn4k-live-aripai": {
+      "name": "CDN4K.live Aripai",
+      "username": "",
+      "password": ""
+    },
+    "vaiagora": {
+      "name": "Vai Agora",
+      "username": "",
+      "password": ""
+    },
+    "4kplay": {
+      "name": "4KPlay",
+      "username": "",
+      "password": ""
+    },
+    "magnum-ott": {
+      "name": "Magnum OTT",
+      "username": "",
+      "password": ""
+    },
+    "murbax": {
+      "name": "Murbax",
+      "username": "",
+      "password": ""
+    },
+    "ddats": {
+      "name": "DDATS",
+      "username": "",
+      "password": ""
+    },
+    "cerejadoce": {
+      "name": "Cereja Doce",
+      "username": "",
+      "password": ""
+    },
+    "claxys": {
+      "name": "Claxys",
+      "username": "",
+      "password": ""
+    },
+    "clbtw": {
+      "name": "CLBTW",
+      "username": "",
+      "password": ""
+    },
+    "4smarts": {
+      "name": "4Smarts",
+      "username": "",
+      "password": ""
+    },
+    "7spkgffyfn": {
+      "name": "7SPKG",
+      "username": "",
+      "password": ""
+    },
+    "masterflix": {
+      "name": "MasterFlix",
+      "username": "",
+      "password": ""
+    }
+  },
+  "epgSources": [
+    "",
+    ""
+  ]
+}
