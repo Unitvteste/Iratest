@@ -1,0 +1,426 @@
+{
+  "version": "0.1.25",
+  "source": "https://raw.githubusercontent.com/kaminarizz/Kamirama-Plugin/main/manifest.json",
+  "syncedAt": "2026-11-14",
+  "providers": [
+    {
+      "id": "berryanimes",
+      "name": "Berry Animes",
+      "version": "0.1.7",
+      "file": "providers/berryanimes.js",
+      "supportedTypes": [
+        "tv"
+      ],
+      "formats": [
+        "hls"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "doramogo",
+      "name": "Doramogo",
+      "version": "0.1.6",
+      "file": "providers/doramogo.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "hls"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "anistream",
+      "name": "AniStream",
+      "version": "0.1.8",
+      "file": "providers/anistream.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "mkv",
+        "mp4"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "megaembedapi",
+      "name": "MegaEmbedAPI",
+      "version": "0.1.6",
+      "file": "providers/megaembedapi.js",
+      "supportedTypes": [
+        "movie"
+      ],
+      "formats": [
+        "mp4"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "embedmovies",
+      "name": "EmbedMovies",
+      "version": "0.1.4",
+      "file": "providers/embedmovies.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "hls"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "anizone",
+      "name": "AniZone",
+      "version": "0.1.6",
+      "file": "providers/anizone.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "hls"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "anizero",
+      "name": "AniZero",
+      "version": "0.1.5",
+      "file": "providers/anizero.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "hls"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "amyflix",
+      "name": "AmyFlix",
+      "version": "0.1.14",
+      "file": "providers/amyflix.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "hls",
+        "mp4"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "topanimes",
+      "name": "TopAnimes",
+      "version": "0.1.14",
+      "file": "providers/topanimes.js",
+      "supportedTypes": [
+        "tv"
+      ],
+      "formats": [
+        "hls",
+        "mp4"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "superanimes",
+      "name": "Super Animes",
+      "version": "0.1.13",
+      "file": "providers/superanimes.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "hls",
+        "mp4"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "animefire",
+      "name": "AnimeFire",
+      "version": "0.1.13",
+      "file": "providers/animefire.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "hls"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "animesonlinecloud",
+      "name": "Animes Online Cloud",
+      "version": "0.1.12",
+      "file": "providers/animesonlinecloud.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "hls",
+        "mp4"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "animesonlineblue",
+      "name": "Animes Online Blue",
+      "version": "0.1.1",
+      "file": "providers/animesonlineblue.js",
+      "supportedTypes": [
+        "tv"
+      ],
+      "formats": [
+        "mp4",
+        "hls"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "yumefree",
+      "name": "YumeFree",
+      "version": "0.1.1",
+      "file": "providers/yumefree.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "hls",
+        "mp4"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "otakulogia",
+      "name": "Otakulogia",
+      "version": "0.1.1",
+      "file": "providers/otakulogia.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "mp4"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "anibunker",
+      "name": "AniBunker",
+      "version": "0.1.13",
+      "file": "providers/anibunker.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "hls",
+        "mp4"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "redeflix",
+      "name": "RedeFlix API",
+      "version": "0.1.11",
+      "file": "providers/redeflix.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "mp4",
+        "hls"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "animeshd",
+      "name": "Animes HD",
+      "version": "0.1.4",
+      "file": "providers/animeshd.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "mp4",
+        "hls"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "animesfhd",
+      "name": "AnimesFHD",
+      "version": "0.2.0",
+      "file": "providers/animesfhd.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "hls"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "animesdrive",
+      "name": "Animes Drive",
+      "version": "0.1.4",
+      "file": "providers/animesdrive.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "mp4",
+        "hls"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "animy",
+      "name": "Animy",
+      "version": "0.1.4",
+      "file": "providers/animy.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "mp4",
+        "hls"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "anitube",
+      "name": "AniTube",
+      "version": "0.1.0",
+      "file": "providers/anitube.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "hls"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "dattebayobr",
+      "name": "Dattebayo BR",
+      "version": "0.1.2",
+      "file": "providers/dattebayobr.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "mp4"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "donghuanosekai",
+      "name": "Donghua no Sekai",
+      "version": "0.1.14",
+      "file": "providers/donghuanosekai.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "hls",
+        "mp4"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "homura",
+      "name": "Homura",
+      "version": "0.2.2",
+      "file": "providers/homura.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "mp4",
+        "hls",
+        "dash"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "tomato",
+      "name": "Tomato",
+      "version": "0.2.1",
+      "file": "providers/tomato.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "mp4",
+        "hls"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "pomfy",
+      "name": "Pomfy",
+      "version": "0.1.0",
+      "file": "providers/pomfy.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "hls"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "pifansubs",
+      "name": "PiFansubs",
+      "version": "0.1.2",
+      "file": "providers/pifansubs.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "hls",
+        "mp4"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "uniquestream",
+      "name": "UniqueStream",
+      "version": "0.1.1",
+      "file": "providers/uniquestream.js",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "formats": [
+        "hls"
+      ],
+      "enabled": true
+    }
+  ]
+}
