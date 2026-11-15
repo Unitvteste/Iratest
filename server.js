@@ -48,31 +48,9 @@ const INDEX_PATH = possibleIndexPaths.find(file =>
 
 // Página inicial
 app.get('/', (_req, res) => {
-  if (!INDEX_PATH) {
-    console.error('[IRACEMAFLIX] Iracema.html não encontrado.');
-    return res.status(404).send(
-      'Erro: Iracema.html não foi encontrado. Verifique a pasta do projeto.'
-    );
-  }
-
-  res.sendFile(INDEX_PATH, error => {
-    if (error) {
-      console.error('[IRACEMAFLIX] Erro ao enviar página:', error);
-      if (!res.headersSent) {
-        res.status(500).send('Erro ao carregar a página inicial.');
-      }
-    }
-  });
+  res.sendFile(path.join(__dirname, 'iracema.html'));
 });
 
-// Acesso direto
-app.get('/iracema.html', (_req, res) => {
-  if (!INDEX_PATH) {
-    return res.status(404).send('iracema.html não encontrado.');
-  }
-
-  res.sendFile(INDEX_PATH);
-});
 
 // Health check
 app.get('/healthz', (_req, res) => {
