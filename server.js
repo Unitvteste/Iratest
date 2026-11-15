@@ -66,9 +66,9 @@ app.get('/', (_req, res) => {
 });
 
 // Acesso direto
-app.get('/Iracema.html', (_req, res) => {
+app.get('/iracema.html', (_req, res) => {
   if (!INDEX_PATH) {
-    return res.status(404).send('Iracema.html não encontrado.');
+    return res.status(404).send('iracema.html não encontrado.');
   }
 
   res.sendFile(INDEX_PATH);
