@@ -4,6 +4,7 @@ const path = require('path');
 
 const app = express();
 
+const PORT = process.env.PORT || 7000;
 const IRACEMA_AI_BASE = 'https://worldecletix.onrender.com';
 
 const IRACEMA_AI_MODELS = [
@@ -28,10 +29,22 @@ const IRACEMA_AI_MODELS = [
 const IRACEMA_AI_LADY_ERROR =
   /update copilot to continue|restart edge to get the latest version of copilot/i;
 
-// Configurações
+// Configurações gerais
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
+
+// Arquivos estáticos
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
+
+// Página inicial
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'Iracema.html'));
+});
+
+// Acesso direto à página
+app.get('/Iracema.html', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'Iracema.html'));
+});
 
 // Health check
 app.get('/healthz', (_req, res) => {
@@ -161,10 +174,7 @@ app.get('/api/iracemaAI/:model', async (req, res) => {
   }
 
   const controller = new AbortController();
-
-  const timer = setTimeout(() => {
-    controller.abort();
-  }, 60000);
+  const timer = setTimeout(() => controller.abort(), 60000);
 
   try {
     const upstream = await fetch(
@@ -180,7 +190,7 @@ app.get('/api/iracemaAI/:model', async (req, res) => {
 
     const body = await upstream.text();
 
-    // Fallback automático da Lady para GPT-5.5
+    // Fallback da Lady para GPT-5.5
     if (model === 'lady' && upstream.ok) {
       let parsed;
 
@@ -258,20 +268,26 @@ app.get('/api/iracemaAI/:model', async (req, res) => {
     clearTimeout(timer);
   }
 });
-app.get('/Iracema.html', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'Iracema.html'));
-});
-// Inicialização do servidor
-const PORT = process.env.PORT || 7000;
 
+// Tratamento de erros
+app.use((err, _req, res, _next) => {
+  console.error('[IRACEMAFLIX]', err.message);
+
+  if (!res.headersSent) {
+    res.status(500).json({
+      error: 'Erro interno no servidor'
+    });
+  }
+});
+
+// Inicialização
 app.listen(PORT, '0.0.0.0', () => {
   console.log('================================');
-  console.log('       IRACEMAFLIX');
-  console.log('       IRACEMA AI');
+  console.log('          IRACEMAFLIX');
   console.log('================================');
   console.log(`Servidor iniciado na porta ${PORT}`);
+  console.log('Página inicial: /Iracema.html');
   console.log('IracemaAI: /api/iracemaAI');
   console.log('Health: /healthz');
   console.log('Status: ONLINE');
 });
-  
