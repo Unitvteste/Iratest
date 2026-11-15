@@ -1,10 +1,10 @@
-
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 
-const PORT = process.env.PORT || 7000;
+const PORT = process.env.PORT || 8080;
 const IRACEMA_AI_BASE = 'https://worldecletix.onrender.com';
 
 const IRACEMA_AI_MODELS = [
@@ -29,28 +29,57 @@ const IRACEMA_AI_MODELS = [
 const IRACEMA_AI_LADY_ERROR =
   /update copilot to continue|restart edge to get the latest version of copilot/i;
 
-// Configurações gerais
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
 
 // Arquivos estáticos
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
+// Localização da página inicial
+const possibleIndexPaths = [
+  path.join(__dirname, 'Iracema.html'),
+  path.join(__dirname, 'public', 'Iracema.html')
+];
+
+const INDEX_PATH = possibleIndexPaths.find(file =>
+  fs.existsSync(file) && fs.statSync(file).isFile()
+);
 
 // Página inicial
 app.get('/', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'Iracema.html'));
+  if (!INDEX_PATH) {
+    console.error('[IRACEMAFLIX] Iracema.html não encontrado.');
+    return res.status(404).send(
+      'Erro: Iracema.html não foi encontrado. Verifique a pasta do projeto.'
+    );
+  }
+
+  res.sendFile(INDEX_PATH, error => {
+    if (error) {
+      console.error('[IRACEMAFLIX] Erro ao enviar página:', error);
+      if (!res.headersSent) {
+        res.status(500).send('Erro ao carregar a página inicial.');
+      }
+    }
+  });
 });
 
-// Acesso direto à página
+// Acesso direto
 app.get('/Iracema.html', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'Iracema.html'));
+  if (!INDEX_PATH) {
+    return res.status(404).send('Iracema.html não encontrado.');
+  }
+
+  res.sendFile(INDEX_PATH);
 });
 
 // Health check
 app.get('/healthz', (_req, res) => {
   res.status(200).json({
     ok: true,
-    service: 'iracemaflix'
+    service: 'iracemaflix',
+    homepage: Boolean(INDEX_PATH)
   });
 });
 
@@ -190,7 +219,6 @@ app.get('/api/iracemaAI/:model', async (req, res) => {
 
     const body = await upstream.text();
 
-    // Fallback da Lady para GPT-5.5
     if (model === 'lady' && upstream.ok) {
       let parsed;
 
@@ -269,9 +297,9 @@ app.get('/api/iracemaAI/:model', async (req, res) => {
   }
 });
 
-// Tratamento de erros
+// Erros internos
 app.use((err, _req, res, _next) => {
-  console.error('[IRACEMAFLIX]', err.message);
+  console.error('[IRACEMAFLIX]', err);
 
   if (!res.headersSent) {
     res.status(500).json({
@@ -286,8 +314,9 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('          IRACEMAFLIX');
   console.log('================================');
   console.log(`Servidor iniciado na porta ${PORT}`);
-  console.log('Página inicial: /Iracema.html');
+  console.log(`Página inicial: ${INDEX_PATH || 'NÃO ENCONTRADA'}`);
   console.log('IracemaAI: /api/iracemaAI');
   console.log('Health: /healthz');
   console.log('Status: ONLINE');
 });
+    
