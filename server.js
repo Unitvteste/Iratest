@@ -258,7 +258,9 @@ app.get('/api/iracemaAI/:model', async (req, res) => {
     clearTimeout(timer);
   }
 });
-
+app.get('/Iracema.html', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'Iracema.html'));
+});
 // Inicialização do servidor
 const PORT = process.env.PORT || 7000;
 
