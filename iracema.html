@@ -576,7 +576,7 @@ if(!matchMedia('(prefers-reduced-motion:reduce)').matches)frame();
       var sts=cards.map(function(c){return c.querySelector('.st').dataset.state}),lv=document.querySelector('.live span');
       if(lv&&sts.indexOf('unk')<0)lv.textContent=sts.indexOf('ok')>-1?'Servidores online':(sts.indexOf('slow')>-1?'Servidores instáveis':'Servidores offline');
       if(btn){btn.disabled=false;btn.textContent='↻ Verificar agora'}
-      if(lc)lc.textContent='Última verificação: '+new Date().toLocaleTimeString('pt-BR');
+      if(lc)lc.textContent='Última verificação: '+new Date().toLocaleTimeString('pt-BR')+' · check v5';
     });
   }
   var b=document.getElementById('recheck');if(b)b.addEventListener('click',run);
