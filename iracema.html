@@ -515,13 +515,18 @@ if(!matchMedia('(prefers-reduced-motion:reduce)').matches)frame();
     return get(url).then(function(j){
       if(!j||typeof j!=='object'||!(j.id||j.name)||!(j.resources||j.catalogs))throw new Error('manifesto inválido');
       var ms=Math.round(performance.now()-t0);
-      var cat=(j.catalogs||[]).filter(function(c){return !(c.extra||[]).some(function(e){return e.isRequired})})[0];
-      if(!cat)return {ok:true,ms:ms,cat:null};
-      var cu=url.replace(/manifest\.json.*$/,'')+'catalog/'+cat.type+'/'+encodeURIComponent(cat.id)+'.json';
-      return get(cu).then(function(c){
-        var n=c&&c.metas?c.metas.length:0;
-        return {ok:true,ms:ms,cat:n>0,catErr:n>0?'':'catálogo vazio'};
-      },function(e){return {ok:true,ms:ms,cat:false,catErr:'catálogo: '+e.message}});
+      var cands=(j.catalogs||[]).filter(function(c){return !(c.extra||[]).some(function(e){return e.isRequired})}).slice(0,5);
+      if(!cands.length)return {ok:true,ms:ms,cat:null};
+      var base=url.replace(/manifest\.json.*$/,'')+'catalog/',i=0,empty=false,lastErr='';
+      function next(){
+        if(i>=cands.length)return {ok:true,ms:ms,cat:empty?'empty':false,catErr:empty?'catálogos sem itens':'catálogo: '+lastErr};
+        var c=cands[i++];
+        return get(base+c.type+'/'+encodeURIComponent(c.id)+'.json').then(function(r){
+          if(r&&r.metas&&r.metas.length)return {ok:true,ms:ms,cat:true};
+          empty=true;return next();
+        },function(e){lastErr=e.message;return next()});
+      }
+      return next();
     }).catch(function(e){
       var ms=Math.round(performance.now()-t0);
       if(!e.net)return {ok:false,ms:ms,err:e.message};
@@ -541,9 +546,13 @@ if(!matchMedia('(prefers-reduced-motion:reduce)').matches)frame();
       if(rs.some(function(r){return r.unk}))return {s:'unk',txt:'Sem leitura',msg:rs[rs.length-1].err};
       return {s:'down',txt:'Offline',msg:rs[rs.length-1].err||'sem resposta'};
     }
-    var full=good.filter(function(r){return r.cat!==false});
-    var ce=(good.filter(function(r){return r.cat===false})[0]||{}).catErr||'';
-    if(!full.length)return {s:'down',txt:'Offline',msg:'manifesto responde, mas '+ce};
+    var full=good.filter(function(r){return r.cat===true||r.cat===null});
+    var emp=good.filter(function(r){return r.cat==='empty'}).length;
+    var ce=(good.filter(function(r){return r.cat===false||r.cat==='empty'})[0]||{}).catErr||'';
+    if(!full.length){
+      if(emp)return {s:'slow',txt:'Instável',msg:'manifesto ok, mas '+ce+' (pode estar sem conteúdo ou fora do ar)'};
+      return {s:'down',txt:'Offline',msg:'manifesto responde, mas '+ce};
+    }
     var ms=full.map(function(r){return r.ms}).sort(function(a,b){return a-b}),med=ms[Math.floor(ms.length/2)];
     if(full.length<rs.length)return {s:'slow',txt:'Instável',msg:full.length+'/'+rs.length+' ok'+(ce?' · '+ce:'')+' · '+med+' ms'};
     if(med>=SLOW)return {s:'slow',txt:'Instável',msg:'lento · '+med+' ms'};
