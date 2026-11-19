@@ -3056,6 +3056,89 @@ function runPrioritySearchesInParallel(providerSearch, xtreamSearch) {
   ]);
 }
 
+async function runPrioritySourcesLite(providerSources, xtreamSources, runProvider, runXtream, options = {}) {
+  const deadlineAt = Number(options.deadlineAt) || Date.now() + 25000;
+  const requestId = String(options.id || '');
+  const ordered = [];
+  const maxLength = Math.max(providerSources.length, xtreamSources.length);
+  for (let index = 0; index < maxLength; index += 1) {
+    if (providerSources[index]) ordered.push({ kind: 'provider', source: providerSources[index], index });
+    if (xtreamSources[index]) ordered.push({ kind: 'xtream', source: xtreamSources[index], index });
+  }
+  const provider = { streams: [], outcomes: [], elapsedMs: 0, sourceElapsedMs: 0, maxConcurrentSources: 0 };
+  const xtream = { streams: [], outcomes: [], elapsedMs: 0, sourceElapsedMs: 0, maxConcurrentSources: 0 };
+  const appendUnstarted = (task, reason) => {
+    const target = task.kind === 'provider' ? provider : xtream;
+    const source = task.source;
+    const outcome = {
+      sourceId: String(source.id || source.sourceId || `${task.kind}-${task.index + 1}`),
+      sourceName: String(source.sourceName || source.name || source.id || 'Fonte'),
+      ...(source.providerId ? { providerId: source.providerId } : {}),
+      priorityIndex: Number.isInteger(source.priorityIndex) ? source.priorityIndex : task.index,
+      status: 'not_started', streams: 0, elapsedMs: 0, reason
+    };
+    target.outcomes.push(outcome);
+    sourceLog(task.kind === 'provider' ? 'provider-source-result' : 'xtream-source-result', {
+      id: requestId, ...outcome, started: false, parallel: false, mode: 'lite'
+    });
+  };
+
+  for (let index = 0; index < ordered.length; index += 1) {
+    const task = ordered[index];
+    const remainingMs = deadlineAt - Date.now();
+    if (remainingMs <= 0) {
+      for (let rest = index; rest < ordered.length; rest += 1) {
+        appendUnstarted(ordered[rest], 'deadline global de 25 s atingido antes do início');
+      }
+      break;
+    }
+    // Divide o tempo restante entre as fontes ainda pendentes e reserva 10% para overhead.
+    const sourceTimeoutMs = Math.max(1, Math.floor((remainingMs / (ordered.length - index)) * 0.9));
+    const context = { deadlineAt, remainingMs, sourceTimeoutMs };
+    const target = task.kind === 'provider' ? provider : xtream;
+    const startedAt = Date.now();
+    try {
+      const result = await (task.kind === 'provider'
+        ? runProvider(task.source, context)
+        : runXtream(task.source, context));
+      target.streams.push(...(Array.isArray(result?.streams) ? result.streams : []));
+      target.outcomes.push(...(Array.isArray(result?.outcomes) ? result.outcomes : []));
+      target.elapsedMs += Number(result?.elapsedMs) || (Date.now() - startedAt);
+      target.sourceElapsedMs += Number(result?.sourceElapsedMs) || 0;
+      if (result) target.maxConcurrentSources = Math.max(target.maxConcurrentSources, Number(result.maxConcurrentSources) || 1);
+    } catch {
+      const source = task.source;
+      const outcome = {
+        sourceId: String(source.id || source.sourceId || `${task.kind}-${task.index + 1}`),
+        sourceName: String(source.sourceName || source.name || source.id || 'Fonte'),
+        ...(source.providerId ? { providerId: source.providerId } : {}),
+        priorityIndex: Number.isInteger(source.priorityIndex) ? source.priorityIndex : task.index,
+        status: 'error', streams: 0, elapsedMs: Date.now() - startedAt, reason: 'erro não recuperável na busca da fonte'
+      };
+      target.outcomes.push(outcome);
+      sourceLog(task.kind === 'provider' ? 'provider-source-result' : 'xtream-source-result', {
+        id: requestId, ...outcome, started: true, parallel: false, mode: 'lite'
+      });
+      target.elapsedMs += outcome.elapsedMs;
+      target.maxConcurrentSources = 1;
+    }
+  }
+
+  for (const [target, available] of [[provider, providerSources.length], [xtream, xtreamSources.length]]) {
+    target.summary = {
+      sourcesAvailable: available,
+      sourcesStarted: target.outcomes.filter((item) => !['not_started', 'skipped-priority'].includes(item.status)).length,
+      streams: target.streams.length,
+      elapsedMs: target.elapsedMs,
+      sourceElapsedMs: target.sourceElapsedMs,
+      serial: true,
+      parallel: false,
+      maxConcurrentSources: target.maxConcurrentSources
+    };
+  }
+  return { provider, xtream, maxConcurrentSources: Math.max(provider.maxConcurrentSources, xtream.maxConcurrentSources) };
+}
+
 function normalizeProviderBundleStreams(result, providerId) {
   const streams = Array.isArray(result?.streams) ? result.streams.slice(0, 16) : [];
   const output = [];
@@ -3306,7 +3389,7 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
     {
       id: imdb || tmdbId,
       type,
-      sourceTimeoutMs: Math.min(25000, DIRECT_PROVIDER_API_TIMEOUT_MS, PROVIDER_SOURCE_TIMEOUT_MS),
+      sourceTimeoutMs: Math.min(25000, Number(testOptions.sourceTimeoutMs) || 25000, DIRECT_PROVIDER_API_TIMEOUT_MS, PROVIDER_SOURCE_TIMEOUT_MS),
       totalBudgetMs: budgetMs,
       deadlineAt: testOptions.deadlineAt,
       eventName: 'provider-source-result',
@@ -3606,7 +3689,7 @@ function sourceLog(event, details = {}) {
     return;
   }
   if (event === 'startup') {
-    console.log(`[IRACEMAFLIX] iniciado | Xtream=${safeDetails.xtreamConfigured ? 'ativo' : 'inativo'} | providers=${safeDetails.providerSources} | busca=${safeDetails.searchTimeoutMs || 25000}ms | por fonte=${safeDetails.sourceTimeoutMs || 25000}ms | logs=${safeDetails.logFile || SOURCE_LOG_FILE}`);
+    console.log(`[IRACEMAFLIX-LITE] iniciado | Xtream=${safeDetails.xtreamConfigured ? 'ativo' : 'inativo'} | providers=${safeDetails.providerSources} | busca=${safeDetails.searchTimeoutMs || 25000}ms | prioridades=1 por vez | logs=${safeDetails.logFile || SOURCE_LOG_FILE}`);
   } else if (event === 'imdb-title-resolution') {
     console.log(`[BUSCA] ${safeDetails.id} | ${safeDetails.metadataTitle || 'título não resolvido'} | TMDB=${safeDetails.hasTmdbId ? 'ok' : 'não encontrado'}`);
   } else if (event === 'imdb-priority-phase-complete') {
@@ -4749,7 +4832,7 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
     {
       id: String(id),
       type,
-      sourceTimeoutMs: Math.min(25000, XTREAM_IMDB_TIMEOUT_MS),
+      sourceTimeoutMs: Math.min(25000, Number(testOptions.sourceTimeoutMs) || 25000, XTREAM_IMDB_TIMEOUT_MS),
       totalBudgetMs,
       deadlineAt: testOptions.deadlineAt,
       eventName: 'xtream-source-result',
@@ -7163,7 +7246,7 @@ builder.defineStreamHandler(
           sourceTimeoutMs: perSourceTimeoutMs,
           providerBudgetMs,
           xtreamBudgetMs,
-          mode: animeSearch ? 'anime-providers-only-parallel-single-wave-25s' : 'all-priority-providers-and-xtream-parallel-single-wave-25s',
+          mode: animeSearch ? 'lite-anime-providers-only-one-by-one-25s' : 'lite-priority-sources-one-by-one-25s',
           animeSearch,
           m3uBudgetMs: Math.min(IMDB_M3U_TIMEOUT_MS, providerBudgetRemainingMs())
         });
@@ -7193,8 +7276,8 @@ builder.defineStreamHandler(
           }
         };
 
-        // As fontes prioritárias de provider e Xtream iniciam juntas e compartilham
-        // o mesmo deadline de 25 s. Cada tentativa continua identificada no JSONL.
+        // O lite alterna providers e Xtream prioritários, uma fonte por vez,
+        // repartindo um único deadline global de até 25 s.
         const requestSourceId = imdbId || String(id);
         const allProviderTasks = result
           ? buildProviderSourceTasks({ type, imdbId: id, tmdbResult: result, idMatch })
@@ -7202,7 +7285,8 @@ builder.defineStreamHandler(
         // Para anime, mantém providers gerais prioritários e acrescenta os 15 adapters
         // especializados; Xtream fica fora dessa busca. Demais títulos seguem a regra normal.
         const sourcePlan = buildImdbSourcePlan({ result, providerTasks: allProviderTasks, xtreamSources: XTREAM_SOURCES });
-        const providerPriorityTasks = sourcePlan.providerTasks;
+        const providerPriorityTasks = sourcePlan.providerTasks
+          .map((source, index) => ({ ...source, priorityIndex: index }));
         const providerFallbackTasks = [];
         const xtreamPrioritySources = sourcePlan.xtreamSources
           .map((source, index) => ({ ...source, priorityIndex: index }));
@@ -7214,33 +7298,33 @@ builder.defineStreamHandler(
         let xtreamPriority = { streams: [], outcomes: [], elapsedMs: 0, summary: {} };
 
         if (result && tmdbResultTitle(result) && priorityBudgetMs > 0) {
-          const [providerResult, xtreamResult] = await runPrioritySearchesInParallel(
-            () => providerPriorityTasks.length
-              ? _getDirectProviderApiStreams(type, id, result, idMatch, null, priorityBudgetMs, {
-                  sourceTasks: providerPriorityTasks,
-                  parallel: true,
-                  bypassCache: true,
-                  suppressSummary: true,
-                  returnOutcome: true,
-                  deadlineAt: priorityDeadlineAt,
-                  sourcesAvailable: providerPriorityTasks.length
-                })
-              : providerPriority,
-            () => xtreamPrioritySources.length
-              ? findXtreamEntriesForImdb(type, id, result, priorityBudgetMs, {
-                  sources: xtreamPrioritySources,
-                  parallel: true,
-                  suppressSummary: true,
-                  returnOutcome: true,
-                  deadlineAt: priorityDeadlineAt,
-                  sourcesAvailable: xtreamPrioritySources.length
-                })
-              : xtreamPriority
+          const liteResult = await runPrioritySourcesLite(
+            providerPriorityTasks,
+            xtreamPrioritySources,
+            (source, context) => _getDirectProviderApiStreams(type, id, result, idMatch, null, context.remainingMs, {
+              sourceTasks: [source],
+              sourceTimeoutMs: context.sourceTimeoutMs,
+              parallel: false,
+              bypassCache: true,
+              suppressSummary: true,
+              returnOutcome: true,
+              deadlineAt: context.deadlineAt,
+              sourcesAvailable: providerPriorityTasks.length
+            }),
+            (source, context) => findXtreamEntriesForImdb(type, id, result, context.remainingMs, {
+              sources: [source],
+              sourceTimeoutMs: context.sourceTimeoutMs,
+              alternativeTitleVariants: [],
+              parallel: false,
+              suppressSummary: true,
+              returnOutcome: true,
+              deadlineAt: context.deadlineAt,
+              sourcesAvailable: xtreamPrioritySources.length
+            }),
+            { deadlineAt: priorityDeadlineAt, id: requestSourceId }
           );
-          if (providerResult.status === 'fulfilled') providerPriority = providerResult.value;
-          else sourceLog('provider-queue-error', { id: requestSourceId, message: providerResult.reason?.message || 'falha na faixa paralela' });
-          if (xtreamResult.status === 'fulfilled') xtreamPriority = xtreamResult.value;
-          else sourceLog('xtream-queue-error', { id: requestSourceId, message: xtreamResult.reason?.message || 'falha na faixa paralela' });
+          providerPriority = liteResult.provider;
+          xtreamPriority = liteResult.xtream;
         } else {
           sourceLog('imdb-priority-search-skipped', {
             id: requestSourceId,
@@ -7276,7 +7360,7 @@ builder.defineStreamHandler(
           sourcesStarted: providerOutcomes.filter((item) => !['not_started', 'skipped-priority'].includes(item.status)).length,
           streams: providerApiStreams.length,
           elapsedMs: providerPriority.elapsedMs || Date.now() - priorityStartedAt,
-          serial: false, parallel: true, sources: providerOutcomes
+          serial: true, parallel: false, sources: providerOutcomes
         });
         sourceLog('xtream-search-complete', {
           ...(xtreamPriority.summary || {}), id: requestSourceId, type,
@@ -7285,7 +7369,7 @@ builder.defineStreamHandler(
           sourcesWithMedia: (xtreamPriority.outcomes || []).filter((item) => item.status === 'ok').length,
           streams: xtreamEntries.length,
           elapsedMs: xtreamPriority.elapsedMs || Date.now() - priorityStartedAt,
-          serial: false, parallel: true, sources: xtreamOutcomes
+          serial: true, parallel: false, sources: xtreamOutcomes
         });
         sourceLog('imdb-priority-phase-complete', {
           id: requestSourceId,
@@ -7297,8 +7381,8 @@ builder.defineStreamHandler(
           xtreamAvailable: xtreamPrioritySources.length,
           providerStreams: providerApiStreams.length,
           xtreamStreams: xtreamEntries.length,
-          maxConcurrentSources: (providerPriority.maxConcurrentSources || 0) + (xtreamPriority.maxConcurrentSources || 0),
-          parallel: true
+          maxConcurrentSources: Math.max(providerPriority.maxConcurrentSources || 0, xtreamPriority.maxConcurrentSources || 0),
+          parallel: false
         });
 
         if (!priorityHasMedia && result && tmdbResultTitle(result)) {
@@ -7368,9 +7452,9 @@ builder.defineStreamHandler(
           providerApiStreams: providerApiStreams.length,
           m3uAttempted: Boolean(result && m3uBudgetMs > 0),
           m3uEntries: m3uEntries.length,
-          serial: false,
-          priorityParallel: true,
-          order: ['providers+xtream-priorities-parallel', 'provider-fallback', 'xtream-fallback', 'm3u']
+          serial: true,
+          priorityParallel: false,
+          order: ['providers+xtream-priorities-one-by-one-until-25s', 'm3u']
         });
         const streams = decorateImdbStreams(combinedStreams, type, id, result);
         sourceLog('imdb-stream-result', {
@@ -7871,7 +7955,7 @@ app.get('/', (_req, res) => {
 });
 if (require.main === module) {
   const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[IRACEMAFLIX] HTTP pronto | porta=${PORT} | prazo total=${IMDB_STREAM_TIMEOUT_MS}ms | cada fonte ≤25s | M3U=${M3U_SOURCES.length ? 'configurada' : 'desativada'}`);
+    console.log(`[IRACEMAFLIX-LITE] HTTP pronto | porta=${PORT} | prioridades=1 por vez | prazo total=${IMDB_STREAM_TIMEOUT_MS}ms (máx. 25s) | M3U=${M3U_SOURCES.length ? 'configurada' : 'desativada'}`);
   });
   server.on('error', (error) => { console.error('Não foi possível iniciar o addon:', error); process.exitCode = 1; });
 }
@@ -7898,8 +7982,8 @@ module.exports._test = {
       livePageMs: LiveTv._test.pageTimeoutMs,
       liveCaptureMs: LiveTv._test.captureTimeoutMs,
       sourceTimeoutMs: 25000,
-      serial: false,
-      priorityParallel: true,
+      serial: true,
+      priorityParallel: false,
       fallbackSerial: false
     }),
     providerCatalog: () => [...PROVIDER_SOURCES.keys()],
@@ -7934,6 +8018,7 @@ module.exports._test = {
     selectAnimeProviderTasks,
     selectAnimeSearchProviderTasks,
     buildImdbSourcePlan,
+    runPrioritySourcesLite,
     runSourceQueueSerial,
     runSourceQueueParallel,
     runPrioritySearchesInParallel,
