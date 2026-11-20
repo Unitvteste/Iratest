@@ -1871,15 +1871,12 @@ const TMDB_API_KEY = CONFIG.TMDB_API_KEY || '';
 const TMDB_LANGUAGE = CONFIG.TMDB_LANGUAGE || 'pt-BR';
 const TMDB_TIMEOUT_MS = Math.min(positiveEnvNumber('TMDB_TIMEOUT_MS', 15000, 15000), 15000);
 const IMDB_METADATA_TIMEOUT_MS = positiveEnvNumber('IMDB_METADATA_TIMEOUT_MS', 4500, 6000);
-// Lite roda serialmente: amplia o orçamento total sem alterar o teto de 25 s por fonte.
+// Cada fonte tem teto de 25 s; a faixa prioritária inteira também tem janela total de 25 s.
+const IMDB_PRIORITY_PHASE_TIMEOUT_MS = 25000;
 const IMDB_STREAM_TIMEOUT_MS = positiveEnvNumber(
-  'LITE_IMDB_STREAM_TIMEOUT_MS',
-  120_000,
-  300_000
-);
-const IMDB_PRIORITY_PHASE_TIMEOUT_MS = Math.min(
-  IMDB_STREAM_TIMEOUT_MS,
-  positiveEnvNumber('LITE_PRIORITY_PHASE_TIMEOUT_MS', IMDB_STREAM_TIMEOUT_MS, 300_000)
+  'IMDB_STREAM_TIMEOUT_MS',
+  Number(CONFIG.IMDB_STREAM_TIMEOUT_MS) || 3_000_000,
+  3_000_000
 );
 const XTREAM_TIMEOUT_MS = Math.min(positiveEnvNumber('XTREAM_TIMEOUT_MS', 25000, 25000), 25000);
 const XTREAM_IMDB_TIMEOUT_MS = Math.min(positiveEnvNumber('XTREAM_IMDB_TIMEOUT_MS', 25000, 25000), 25000);
@@ -2726,23 +2723,6 @@ function buildImdbSourcePlan({ result, providerTasks = [], xtreamSources = XTREA
   };
 }
 
-function interleaveLiteTasksByProvider(tasks = []) {
-  const groups = new Map();
-  for (const task of Array.isArray(tasks) ? tasks : []) {
-    const providerId = String(task?.providerId || task?.id || task?.sourceId || '').toLowerCase();
-    if (!groups.has(providerId)) groups.set(providerId, []);
-    groups.get(providerId).push(task);
-  }
-  const ordered = [];
-  while (groups.size) {
-    for (const [providerId, group] of groups) {
-      ordered.push(group.shift());
-      if (!group.length) groups.delete(providerId);
-    }
-  }
-  return ordered;
-}
-
 async function runSourceQueueSerial(sources, runSource, options = {}) {
   const sourceList = Array.isArray(sources) ? sources : [];
   const sourceTimeoutMs = Math.min(25000, Math.max(1, Number(options.sourceTimeoutMs) || 25000));
@@ -3077,7 +3057,7 @@ function runPrioritySearchesInParallel(providerSearch, xtreamSearch) {
 }
 
 async function runPrioritySourcesLite(providerSources, xtreamSources, runProvider, runXtream, options = {}) {
-  const deadlineAt = Number(options.deadlineAt) || Date.now() + IMDB_PRIORITY_PHASE_TIMEOUT_MS;
+  const deadlineAt = Number(options.deadlineAt) || Date.now() + 25000;
   const requestId = String(options.id || '');
   const ordered = [];
   const maxLength = Math.max(providerSources.length, xtreamSources.length);
@@ -3108,7 +3088,7 @@ async function runPrioritySourcesLite(providerSources, xtreamSources, runProvide
     const remainingMs = deadlineAt - Date.now();
     if (remainingMs <= 0) {
       for (let rest = index; rest < ordered.length; rest += 1) {
-        appendUnstarted(ordered[rest], 'deadline global do Lite atingido antes do início');
+        appendUnstarted(ordered[rest], 'deadline global de 25 s atingido antes do início');
       }
       break;
     }
@@ -7305,7 +7285,7 @@ builder.defineStreamHandler(
         // Para anime, mantém providers gerais prioritários e acrescenta os 15 adapters
         // especializados; Xtream fica fora dessa busca. Demais títulos seguem a regra normal.
         const sourcePlan = buildImdbSourcePlan({ result, providerTasks: allProviderTasks, xtreamSources: XTREAM_SOURCES });
-        const providerPriorityTasks = interleaveLiteTasksByProvider(sourcePlan.providerTasks)
+        const providerPriorityTasks = sourcePlan.providerTasks
           .map((source, index) => ({ ...source, priorityIndex: index }));
         const providerFallbackTasks = [];
         const xtreamPrioritySources = sourcePlan.xtreamSources
@@ -7795,8 +7775,6 @@ app.use((req, res, next) => {
   requestContext.run({ requestId, baseUrl }, next);
 });
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
-const { registerHomepageTmdbProxy } = require('./homepage-tmdb-proxy');
-registerHomepageTmdbProxy(app, { getApiKey: () => TMDB_API_KEY });
 app.get('/healthz', (_req, res) => {
   res.status(200).json({ ok: true, service: 'iracemaflix' });
 });
@@ -7977,7 +7955,7 @@ app.get('/', (_req, res) => {
 });
 if (require.main === module) {
   const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[IRACEMAFLIX-LITE] HTTP pronto | porta=${PORT} | prioridades=1 por vez | prazo total=${IMDB_STREAM_TIMEOUT_MS}ms | cada fonte ≤25s | M3U=${M3U_SOURCES.length ? 'configurada' : 'desativada'}`);
+    console.log(`[IRACEMAFLIX-LITE] HTTP pronto | porta=${PORT} | prioridades=1 por vez | prazo total=${IMDB_STREAM_TIMEOUT_MS}ms (máx. 25s) | M3U=${M3U_SOURCES.length ? 'configurada' : 'desativada'}`);
   });
   server.on('error', (error) => { console.error('Não foi possível iniciar o addon:', error); process.exitCode = 1; });
 }
@@ -8040,7 +8018,6 @@ module.exports._test = {
     selectAnimeProviderTasks,
     selectAnimeSearchProviderTasks,
     buildImdbSourcePlan,
-    interleaveLiteTasksByProvider,
     runPrioritySourcesLite,
     runSourceQueueSerial,
     runSourceQueueParallel,
