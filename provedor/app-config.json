@@ -49,6 +49,7 @@
     "lbplay"
   ],
   "LIVE_TV_API_BASE": "https://apitvaddon.onrender.com/api/v1",
+  "LIVE_TV_API_TIMEOUT_MS": "30000",
   "LIVE_TV_CACHE_MS": "300000",
   "LIVE_TV_RESOLVE_CACHE_MS": "600000",
   "LIVE_TV_MAX_CAPTURE_PAGES": "8",
