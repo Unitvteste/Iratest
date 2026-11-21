@@ -1339,6 +1339,43 @@ function extractReiM3u8Urls(text) {
   return [...results];
 }
 
+function extractReiGeneratedPageLinks(text, baseUrl) {
+  const links = [];
+  const source = String(text || '');
+  const addUrl = (value) => {
+    try {
+      const url = new URL(value, baseUrl);
+      if (['http:', 'https:'].includes(url.protocol) && /\/tv\//i.test(url.pathname) && !isAnalyticsOrAdUrl(url.href) && !links.includes(url.href)) links.push(url.href);
+    } catch { /* URL decodificada inválida */ }
+  };
+  const decodeLiteralPairs = (value) => {
+    for (const match of String(value || '').matchAll(/atob\(['"]([^'"]+)['"]\)\s*,[^;]{0,180}?atob\(['"]([^'"]+)['"]\)/gi)) {
+      try {
+        const payload = Buffer.from(match[1], 'base64');
+        const key = Buffer.from(match[2], 'base64');
+        if (!payload.length || !key.length) continue;
+        const decoded = Buffer.alloc(payload.length);
+        for (let index = 0; index < payload.length; index += 1) decoded[index] = payload[index] ^ key[index % key.length];
+        addUrl(decoded.toString('latin1').split('').reverse().join('').trim());
+      } catch { /* ignora pares que não sejam URL */ }
+    }
+  };
+  const arrayMatch = source.match(/(?:var|let|const)\s+pvqVN72\s*=\s*\[((?:[^\]]|\](?!\s*,\s*zRbolaau))*)\]\s*,\s*zRbolaau\s*=\s*\[([^\]]+)\]/i);
+  const keyMatch = source.match(/\bYh7l\s*=\s*['"]([^'"]+)['"]/i);
+  if (!arrayMatch || !keyMatch) return links;
+  try {
+    const values = [...arrayMatch[1].matchAll(/['"]((?:\\.|[^'"\\])*)['"]/g)].map((match) => match[1]);
+    const order = arrayMatch[2].split(',').map((value) => Number(value.trim())).filter(Number.isInteger);
+    const payload = Buffer.from(order.map((index) => values[index] || '').join(''), 'base64');
+    const key = Buffer.from(keyMatch[1].split('').reverse().join(''), 'base64');
+    if (!payload.length || !key.length) return links;
+    const decoded = Buffer.alloc(payload.length);
+    for (let index = 0; index < payload.length; index += 1) decoded[index] = payload[index] ^ key[index % key.length];
+    decodeLiteralPairs(decoded.toString('utf8'));
+  } catch { /* ignora a camada ofuscada inválida */ }
+  return links;
+}
+
 function isAnalyticsOrAdUrl(value) {
   try {
     const url = new URL(value);
@@ -1364,6 +1401,7 @@ function extractPageLinks(html, baseUrl) {
   for (const match of source.matchAll(/(?:iframeSrc|playerUrl|embedUrl|file|source|src|hls|playlist)\s*[:=]\s*["']([^"']+)["']/gi)) {
     if (!/\.m3u8(?:$|[?#])/i.test(match[1])) add(match[1], 'player');
   }
+  for (const url of extractReiGeneratedPageLinks(source, baseUrl)) add(url, 'rei-generated-iframe');
   return links;
 }
 
@@ -1484,7 +1522,7 @@ async function captureAllPlaybackOptions(item, itemKey) {
           ...captured,
           url,
           mirrors: undefined,
-          label: `${label} • Mirror ${mirrorIndex + 2}`
+          label: `${label} • Servidor ${mirrorIndex + 2}`
         }))
       ];
     }
@@ -1600,6 +1638,7 @@ async function streams(type, id, refreshedEmbedTv = false) {
   const item = await getItem(type, id);
   if (!item) return { streams: [] };
   const key = String(item.id || item.slug || item.name || item.title || '');
+  const isReiItem = String(id).startsWith(CHANNEL_PREFIX) || String(id).startsWith(EVENT_PREFIX);
   const candidates = streamCandidates(item);
   if (String(id).startsWith(EMBEDTV_CHANNEL_PREFIX)) {
     sourceLog('embedtv-stream-candidates', {
@@ -1667,7 +1706,7 @@ async function streams(type, id, refreshedEmbedTv = false) {
       }
     }
   }
-  const youtube = [...new Set(candidates.map((candidate) => youtubeVideoId(candidate.url)).filter(Boolean))];
+  const youtube = isReiItem ? [] : [...new Set(candidates.map((candidate) => youtubeVideoId(candidate.url)).filter(Boolean))];
   if (youtube.length) {
     return { streams: youtube.slice(0, 4).map((ytId, index) => ({
       name: `▶️ YouTube Live${youtube.length > 1 ? ` ${index + 1}` : ''}`,
@@ -1817,6 +1856,16 @@ async function streams(type, id, refreshedEmbedTv = false) {
       ...(convertedUrl || /\.m3u8(?:$|[?#])/i.test(direct.url) ? { type: 'hls' } : {}),
       behaviorHints: { notWebReady: true, proxyHeaders: { request } }
     }] };
+  }
+
+  if (isReiItem) {
+    sourceLog('rei-direct-only-no-playback', {
+      id,
+      item: item.name || item.title || key,
+      candidates: candidates.length,
+      reason: 'nenhuma mídia direta m3u8/mpd/mp4 encontrada; página externa descartada'
+    });
+    return { streams: [] };
   }
 
   // O player hospedado continua sendo uma opção válida quando a playlist HLS
