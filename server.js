@@ -557,6 +557,7 @@ const EVENT_PREFIX = 'iracematv_event_';
 const DEFAULT_UA = 'Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
 const API_CACHE_MS = boundedInt(CONFIG.LIVE_TV_CACHE_MS, 300_000, 30_000, 3_600_000);
 const RESOLVE_CACHE_MS = boundedInt(CONFIG.LIVE_TV_RESOLVE_CACHE_MS, 600_000, 30_000, 3_600_000);
+const API_REQUEST_TIMEOUT_MS = boundedInt(CONFIG.LIVE_TV_API_TIMEOUT_MS, 30_000, 5_000, 30_000);
 const MAX_CAPTURE_PAGES = boundedInt(CONFIG.LIVE_TV_MAX_CAPTURE_PAGES, 8, 1, 12);
 const PAGE_TIMEOUT_MS = boundedInt(CONFIG.LIVE_TV_PAGE_TIMEOUT_MS, 25000, 1000, 25000);
 const CAPTURE_TIMEOUT_MS = boundedInt(CONFIG.LIVE_TV_CAPTURE_TIMEOUT_MS, 25000, 3000, 25000);
@@ -793,7 +794,7 @@ async function fetchJson(endpoint) {
   if (url.origin !== new URL(API_BASE).origin) throw new Error('Endpoint da API fora do host configurado');
   const response = await fetch(url, {
     headers: { accept: 'application/json', 'user-agent': 'IracemaTV/1.5.5' },
-    signal: AbortSignal.timeout(15_000)
+    signal: AbortSignal.timeout(API_REQUEST_TIMEOUT_MS)
   });
   if (!response.ok) throw new Error(`${endpoint} respondeu HTTP ${response.status}`);
   return response.json();
@@ -984,7 +985,10 @@ async function getChannels(force = false) {
   if (!force && cache.channels.data && Date.now() - cache.channels.at < API_CACHE_MS) return cache.channels.data;
   const [allPayload, livePayload] = await Promise.all([
     fetchJson('/channels?source=all&limit=500'),
-    fetchJson('/channels?source=live&limit=500').catch(() => ({ items: [] }))
+    fetchJson('/channels?source=live&limit=500').catch((error) => {
+      sourceLog('rei-live-channels-fetch-error', { message: error.message, timeoutMs: API_REQUEST_TIMEOUT_MS });
+      return { items: [] };
+    })
   ]);
   const data = toArrayPayload(allPayload);
   const liveData = toArrayPayload(livePayload) || [];
