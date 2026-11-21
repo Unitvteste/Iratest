@@ -5,7 +5,9 @@ const ROOT = __dirname;
 const app = JSON.parse(fs.readFileSync(path.join(ROOT, 'app-config.json'), 'utf8'));
 const EPG_SOURCES = JSON.parse(fs.readFileSync(path.join(ROOT, 'epg.json'), 'utf8'));
 const xtreamDir = path.join(ROOT, 'xtream');
-const XTREAM_SOURCES = fs.readdirSync(xtreamDir)
+// As configurações Xtream privadas podem ser injetadas apenas em runtime;
+// o diretório local é opcional e não deve impedir a inicialização do addon.
+const XTREAM_SOURCES = (fs.existsSync(xtreamDir) ? fs.readdirSync(xtreamDir) : [])
   .filter((name) => name.endsWith('.json'))
   .sort()
   .map((name) => {
