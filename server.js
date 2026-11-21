@@ -789,7 +789,7 @@ function toArrayPayload(payload) {
 }
 
 async function fetchJson(endpoint) {
-  const url = new URL(endpoint, `${API_BASE}/`);
+  const url = new URL(String(endpoint || '').replace(/^\/+/, ''), `${API_BASE}/`);
   if (url.origin !== new URL(API_BASE).origin) throw new Error('Endpoint da API fora do host configurado');
   const response = await fetch(url, {
     headers: { accept: 'application/json', 'user-agent': 'IracemaTV/1.5.5' },
@@ -801,7 +801,7 @@ async function fetchJson(endpoint) {
 
 async function fetchEmbedTvJson(pathname) {
   const hostedPath = /apitvaddon\.onrender\.com/i.test(EMBEDTV_API_BASE)
-    ? ({ '/api/channels': '/channels', '/api/events': '/embedtv/events', '/api/epg_all': '/embedtv/epg' }[pathname] || pathname)
+    ? ({ '/api/channels': 'channels', '/api/events': 'embedtv/events', '/api/epg_all': 'embedtv/epg' }[pathname] || pathname.replace(/^\//, ''))
     : pathname;
   const url = new URL(hostedPath, `${EMBEDTV_API_BASE}/`);
   try {
@@ -826,15 +826,17 @@ async function getEmbedTvChannels(force = false) {
   if (!force && cached.data && Date.now() - cached.at < API_CACHE_MS) return cached.data;
   const payload = await fetchEmbedTvJson('/api/channels');
   const categoryNames = new Map((Array.isArray(payload?.categories) ? payload.categories : []).map((item) => [String(item.id), item.name]));
-  const channels = (Array.isArray(payload) ? payload : payload?.channels || []).map((item) => {
+  const channels = (Array.isArray(payload) ? payload : payload?.channels || payload?.items || payload?.data || []).map((item) => {
     const baseCategories = (Array.isArray(item.categories) ? item.categories : []).map((id) => categoryNames.get(String(id))).filter((name) => name && name !== 'Todos');
     const channelText = `${item.id || ''} ${item.name || ''}`;
     const categories = /a fazenda/i.test(channelText) ? ['A Fazenda 18'] : /^24h[_ ]/i.test(String(item.id || '')) || /\b24h\b/i.test(String(item.name || '')) ? ['Canais 24h'] : baseCategories;
-    return { ...item, source_name: 'EmbedTV', category: categories.join(' • ') || 'Outros' };
+    const sourceUrl = item.sourceUrl || item.source_url || item.url || item.href || item.embed_url || '';
+    return { ...item, url: item.url || sourceUrl, source_url: item.source_url || sourceUrl, sourceUrl,
+      source_name: item.source_name || 'EmbedTV', category: categories.join(' • ') || item.category || 'Outros' };
   }).filter((item) => {
     const id = normalizeText(item.id);
     const name = normalizeText(item.name || item.title);
-    return item.id && item.url && !/^(playboy|sexyhot)$/.test(id) && !/^(play boy|sexy hot)$/.test(name);
+    return item.id && (item.url || item.sourceUrl || item.source_url) && !/^(playboy|sexyhot)$/.test(id) && !/^(play boy|sexy hot)$/.test(name);
   });
   cache.embedTv.channels = { at: Date.now(), data: channels };
   return channels;
@@ -849,10 +851,12 @@ async function getEmbedTvEvents(force = false) {
     sourceLog('embedtv-events-fetch-error', { message: error.message, cacheAvailable: Boolean(cached.data) });
     throw error;
   }
-  const events = (Array.isArray(payload) ? payload : payload?.events || payload?.data || []).map((item) => ({
+  const events = (Array.isArray(payload) ? payload : payload?.events || payload?.items || payload?.data || []).map((item) => ({
     ...item,
-    source_name: 'EmbedTV',
-    players: (Array.isArray(item.players) ? item.players : []).map((url) => ({ embed_url: url, provider: 'EmbedTV' }))
+    source_name: item.source_name || 'EmbedTV',
+    players: [...(Array.isArray(item.players) ? item.players : []), ...(Array.isArray(item.embeds) ? item.embeds : [])]
+      .map((player) => typeof player === 'string' ? ({ embed_url: player, provider: 'EmbedTV' }) : player)
+      .filter(Boolean)
   })).filter((item) => item.id && (Number.isFinite(firstEventTimestamp(item, EVENT_START_FIELDS)) || eventStatus(item) !== 'unknown'));
   cache.embedTv.events = { at: Date.now(), data: events };
   sourceLog('embedtv-events-fetch', {
@@ -868,7 +872,7 @@ async function getEmbedTvEpg(force = false) {
   const cached = cache.embedTv.epg;
   if (!force && cached.data && Date.now() - cached.at < API_CACHE_MS) return cached.data;
   const payload = await fetchEmbedTvJson('/api/epg_all');
-  const epg = new Map((Array.isArray(payload) ? payload : payload?.channels || payload?.data || []).map((item) => [String(item.id), Array.isArray(item.data) ? item.data.slice().sort((a, b) => eventTimestamp(a.start_date) - eventTimestamp(b.start_date)) : []]));
+  const epg = new Map((Array.isArray(payload) ? payload : payload?.channels || payload?.items || payload?.data || []).map((item) => [String(item.id), Array.isArray(item.data) ? item.data.slice().sort((a, b) => eventTimestamp(a.start_date) - eventTimestamp(b.start_date)) : []]));
   cache.embedTv.epg = { at: Date.now(), data: epg };
   return epg;
 }
@@ -978,9 +982,32 @@ function addGloboAlternates(channel) {
 
 async function getChannels(force = false) {
   if (!force && cache.channels.data && Date.now() - cache.channels.at < API_CACHE_MS) return cache.channels.data;
-  const data = toArrayPayload(await fetchJson('/channels'));
+  const [allPayload, livePayload] = await Promise.all([
+    fetchJson('/channels?source=all&limit=500'),
+    fetchJson('/channels?source=live&limit=500').catch(() => ({ items: [] }))
+  ]);
+  const data = toArrayPayload(allPayload);
+  const liveData = toArrayPayload(livePayload) || [];
   if (!data) throw new Error('Resposta de /channels sem lista de canais');
-  const enriched = data.map(addGloboAlternates);
+  const normalizeChannel = (channel, source = '') => {
+    const sourceUrl = channel.sourceUrl || channel.source_url || channel.url || channel.href || '';
+    const embeds = Array.isArray(channel.embeds) ? channel.embeds : [];
+    return addGloboAlternates({ ...channel, source: channel.source || source, source_name: channel.source_name || (source === 'live-tv' ? REI_EMB_PROVIDER : 'EmbedTV'), image: channel.image || channel.logo_url || channel.logo || '', logo_url: channel.logo_url || channel.image || channel.logo || '', sourceUrl, source_url: channel.source_url || sourceUrl, url: channel.url || sourceUrl, embeds });
+  };
+  const enriched = data.map((channel) => normalizeChannel(channel, channel.source || 'embedtv'));
+  const liveChannels = liveData.map((channel) => normalizeChannel(channel, 'live-tv'));
+  const byChannelKey = new Map();
+  for (const channel of [...enriched, ...liveChannels]) {
+    const key = embedCanaisKey(channel.id || channel.name || channel.title);
+    const previous = byChannelKey.get(key);
+    if (!previous) { byChannelKey.set(key, channel); continue; }
+    const embeds = [...(Array.isArray(previous.embeds) ? previous.embeds : []), ...(Array.isArray(channel.embeds) ? channel.embeds : [])];
+    byChannelKey.set(key, { ...previous, ...channel, embeds: embeds.filter((embed, index, list) => {
+      const value = typeof embed === 'string' ? embed : embed?.embed_url || embed?.url || '';
+      return value && list.findIndex((item) => (typeof item === 'string' ? item : item?.embed_url || item?.url || '') === value) === index;
+    }) });
+  }
+  const mergedSources = [...byChannelKey.values()];
   let embedChannels = [];
   try {
     embedChannels = await getEmbedCanaisChannels();
@@ -993,14 +1020,15 @@ async function getChannels(force = false) {
     [embedCanaisKey(channel.slug), channel],
     [embedCanaisKey(channel.name), channel]
   ].filter(([key]) => key)));
-  const merged = enriched.map((channel) => {
+  const merged = mergedSources.map((channel) => {
     const match = embedByKey.get(embedCanaisKey(channel.id || channel.name || channel.title)) ||
       embedByKey.get(embedCanaisKey(channel.name || channel.title));
-    if (!match?.href) return channel;
+    const matchUrl = match?.href || match?.url || match?.sourceUrl || match?.source_url || match?.embed_url;
+    if (!matchUrl) return channel;
     const alternate = {
       provider: EMBED_CANAIS_PROVIDER,
       quality: 'FULL HD',
-      embed_url: embedCanaisPlayerUrl(match.href).replace(/\/$/, ''),
+      embed_url: embedCanaisPlayerUrl(matchUrl).replace(/\/$/, ''),
       source_name: EMBED_CANAIS_PROVIDER
     };
     const embeds = Array.isArray(channel.embeds) ? channel.embeds : [];
@@ -1016,7 +1044,7 @@ async function getChannels(force = false) {
     name: channel.name || channel.slug || 'Canal',
     category: channel.category || 'Outros',
     logo_url: channel.image,
-    embeds: [{ provider: EMBED_CANAIS_PROVIDER, quality: 'FULL HD', embed_url: embedCanaisPlayerUrl(channel.href || '').replace(/\/$/, '') }]
+    embeds: [{ provider: EMBED_CANAIS_PROVIDER, quality: 'FULL HD', embed_url: embedCanaisPlayerUrl(channel.href || channel.url || channel.sourceUrl || '').replace(/\/$/, '') }]
   }));
   const channels = [...merged, ...fallbacks, ...extraEmbedChannels];
   cache.channels = { at: Date.now(), data: channels };
@@ -1057,7 +1085,7 @@ function channelMeta(channel) {
   const category = String(channel.category || channel.category_name || channel.genre || 'Outros').trim() || 'Outros';
   const current = channel.now_playing_title || channel.epg?.current?.title || '';
   const next = channel.epg?.next?.title || '';
-  const poster = channel.logo_url || channel.logo || channel.poster || undefined;
+  const poster = channel.logo_url || channel.logo || channel.poster || channel.image || undefined;
   const description = ['IracemaTV', `Canal • ${name}`, current ? `Agora • ${current}` : '', next ? `Próximo • ${next}` : '', channel.description || ''].filter(Boolean).join('\n');
   return {
     id: channelId(channel), type: 'tv', name,
@@ -1166,7 +1194,7 @@ function streamCandidates(item) {
   const result = [];
   const directKeys = [
     'm3u8_url', 'stream_url', 'hls_url', 'playback_url', 'youtube_live_url',
-    'video_url', 'media_url', 'source_url', 'playlist_url', 'url', 'link', 'file', 'src'
+    'video_url', 'media_url', 'source_url', 'sourceUrl', 'playlist_url', 'url', 'link', 'file', 'src'
   ];
   const pageKeys = ['embed_url', 'page_url', 'play_event_url', 'embedUrl', 'pageUrl'];
   const rootReferer = item?.page_url || item?.embed_url || '';
@@ -1791,6 +1819,21 @@ async function streams(type, id, refreshedEmbedTv = false) {
     }] };
   }
 
+  // O player hospedado continua sendo uma opção válida quando a playlist HLS
+  // está protegida ou ainda não foi publicada; não descarte o canal/evento.
+  if (candidates.length && (String(id).startsWith(CHANNEL_PREFIX) || String(id).startsWith(EVENT_PREFIX) || String(id).startsWith(EMBEDTV_CHANNEL_PREFIX) || String(id).startsWith(EMBEDTV_EVENT_PREFIX))) {
+    const pages = [...new Map(candidates
+      .map((candidate) => ({ url: candidate.pageUrl || candidate.url, candidate }))
+      .filter(({ url }) => /^https?:\/\//i.test(String(url)))
+      .map((entry) => [entry.url, entry])).values()];
+    if (pages.length) return { streams: pages.slice(0, 8).map(({ url, candidate }) => ({
+      name: `▶️ ${candidate.label || 'EmbedTV'}`,
+      title: `${item.name || item.title || 'Transmissão'} • Player externo`,
+      url,
+      behaviorHints: { notWebReady: true }
+    })) };
+  }
+
   return { streams: [] };
 }
 
@@ -1822,7 +1865,7 @@ async function health() {
   return {
   CHANNEL_CATALOG_ID, LIVE_EVENTS_CATALOG_ID, UPCOMING_EVENTS_CATALOG_ID, ALL_EVENTS_CATALOG_ID, EMBEDTV_CHANNEL_CATALOG_ID, EMBEDTV_EVENTS_CATALOG_ID,
   CHANNEL_PREFIX, EVENT_PREFIX, EMBEDTV_CHANNEL_PREFIX, EMBEDTV_EVENT_PREFIX, handlesCatalog, catalog, meta, streams, health,
-  _test: { embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, reiProxyUrl, addGloboAlternates, getChannels, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
+  _test: { embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, reiProxyUrl, addGloboAlternates, getChannels, getEmbedTvChannels, getEmbedTvEvents, getEmbedTvEpg, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
 };
 })();
 
@@ -2675,6 +2718,8 @@ const ANIME_PROVIDER_SEARCH_PRIORITY_IDS = Object.freeze([
 ]);
 
 function isAnimeMetadata(result = {}) {
+  const explicitAnime = [result.anime, result.isAnime, result.is_anime, result.media_type_label]
+    .some((value) => value === true || /^(?:anime|anim[eé])$/i.test(String(value || '').trim()));
   const genreEntries = [result.genres, result.genre]
     .flatMap((value) => Array.isArray(value) ? value : (value == null ? [] : [value]));
   const isAnimation = Number.isInteger(Number(result.genre_id)) && Number(result.genre_id) === 16
@@ -2687,7 +2732,7 @@ function isAnimeMetadata(result = {}) {
       const label = String(entry).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
       return label === 'animation' || label === 'animacao';
     });
-  if (!isAnimation) return false;
+  if (!isAnimation && !explicitAnime) return false;
 
   const languages = [result.original_language, result.originalLanguage, result.language]
     .filter((value) => value != null)
@@ -2698,8 +2743,15 @@ function isAnimeMetadata(result = {}) {
       if (value && typeof value === 'object') value = value.iso_3166_1 || value.code || value.name || '';
       return String(value).trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     });
-  return languages.some((value) => value === 'ja' || value === 'jpn' || value.startsWith('ja-') || value === 'japanese')
-    || countries.some((value) => value === 'jp' || value === 'japan' || value === 'japao');
+  if (languages.some((value) => value === 'ja' || value === 'jpn' || value.startsWith('ja-') || value === 'japanese')
+    || countries.some((value) => value === 'jp' || value === 'japan' || value === 'japao')) return true;
+  const keywordValues = [result.keywords, result.tags, result.type, result.format]
+    .flatMap((value) => Array.isArray(value) ? value : (value == null ? [] : [value]))
+    .map((value) => typeof value === 'object' ? value.name || value.label || value.keyword || '' : value);
+  const hasAnimeKeyword = keywordValues.some((value) => /\banime\b/i.test(String(value || '')));
+  const titleValues = [result.title, result.name, result.original_title, result.original_name].filter(Boolean).join(' ');
+  const hasJapaneseTitle = /[\u3040-\u30ff\u3400-\u9fff]/u.test(titleValues);
+  return explicitAnime || hasAnimeKeyword || hasJapaneseTitle;
 }
 
 function selectAnimeProviderTasks(tasks = []) {
