@@ -8,8 +8,8 @@
 <link rel="icon" href="/assets/favicon-32x32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <meta property="og:image" content="/assets/android-chrome-512x512.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{color-scheme:dark;--bg:#05070d;--line:#1f2b44;--text:#f4f7ff;--muted:#8d9ab3;--a:#348cfe;--b:#8a5cff;--c:#22e3c4;--ok:#35d07f}
@@ -197,16 +197,15 @@ footer{margin-top:3.5rem;padding-top:1.4rem;border-top:1px solid var(--line);col
 @media(min-width:1800px){main{width:min(92rem,calc(100% - 6rem))}}
 @media(hover:none){.card,.fp{transform:none!important}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}h1 .w{opacity:1;transform:none}.rv,.card{opacity:1;transform:none}}
-
-.st[data-state=check],.st[data-state=unk]{color:var(--muted)}.st[data-state=check] i,.st[data-state=check] .bars b,.st[data-state=unk] i,.st[data-state=unk] .bars b{background:#8d9ab3}
-.st[data-state=ok]{color:#bcefd1}
-.st[data-state=slow]{color:#ffe29a}.st[data-state=slow] i,.st[data-state=slow] .bars b{background:#ffc24a}
-.st[data-state=down]{color:#ffb3b3}.st[data-state=down] i,.st[data-state=down] .bars b{background:#ff5d5d;animation:none}
-.st[data-state=down] .bars b{height:2px!important}
-.stm{color:var(--muted);font-weight:600;font-size:.74rem}
-.recheck{margin-top:.8rem}
 </style>
-</head>
+<style>
+@font-face{font-family:Manrope;src:url('/assets/fonts/manrope-400.ttf') format('truetype');font-weight:400;font-display:swap}
+@font-face{font-family:Manrope;src:url('/assets/fonts/manrope-600.ttf') format('truetype');font-weight:600;font-display:swap}
+@font-face{font-family:Manrope;src:url('/assets/fonts/manrope-800.ttf') format('truetype');font-weight:800;font-display:swap}
+@font-face{font-family:Unbounded;src:url('/assets/fonts/unbounded-500.ttf') format('truetype');font-weight:500;font-display:swap}
+@font-face{font-family:Unbounded;src:url('/assets/fonts/unbounded-700.ttf') format('truetype');font-weight:700;font-display:swap}
+@font-face{font-family:Unbounded;src:url('/assets/fonts/unbounded-900.ttf') format('truetype');font-weight:900;font-display:swap}
+</style></head>
 <body>
 <div id="bar"></div>
 <canvas id="fx"></canvas><div class="grain"></div>
@@ -219,7 +218,7 @@ footer{margin-top:3.5rem;padding-top:1.4rem;border-top:1px solid var(--line);col
 <div>
 <h1><span class="w" style="--i:0">Assista</span> <span class="w" style="--i:1">ao</span> <span class="w" style="--i:2">que</span> <span class="w" style="--i:3">você</span> <span class="w grad" style="--i:4">ama.</span></h1>
 <p class="sub rv">Filmes, séries e canais ao vivo em português. Abra o catálogo para <span class="type" id="typed"></span></p>
-<div class="cta rv"><a class="big" href="https://iracemaflix.eu.cc/" target="_blank" rel="noreferrer">Abrir site Iracemaflix <span aria-hidden="true">↗</span></a><a class="big ghost" href="#servidores">Instalar no Stremio</a></div>
+<div class="cta rv"><a class="big" href="/manifest.json" target="_blank" rel="noreferrer">Abrir manifesto do addon <span aria-hidden="true">↗</span></a><a class="big ghost" href="#servidores">Instalar no Stremio</a></div>
 <div class="chips rv"><span class="chip k">4K UHD</span><span class="chip"><i></i>Dublado</span><span class="chip"><i></i>Ao vivo</span><span class="chip"><i></i>Play rápido</span></div>
 </div>
 </section>
@@ -261,14 +260,11 @@ footer{margin-top:3.5rem;padding-top:1.4rem;border-top:1px solid var(--line);col
 <div class="tile"><em>AO VIVO</em><b>📹</b><span>Realitys</span></div>
 </div></section>
 
-<section class="sec" id="servidores"><h2>Instale no Stremio</h2><p>Escolha um manifesto e toque em Adicionar.</p>
+<section class="sec" id="servidores"><h2>Instale no Stremio</h2><p>Use o manifesto oficial do Iracemaflix.</p>
 <div class="servers">
-<article class="card"><div class="in"><div class="kind">Servidor primário</div><h3>BeamUp</h3><div class="url">https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json</div><div class="st" data-state="check"><i></i><span class="stt">Verificando…</span><small class="stm"></small><div class="bars"><b></b><b></b><b></b><b></b></div></div><div class="act"><a class="btn main" href="stremio://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json">Adicionar</a><a class="btn" href="https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json" target="_blank" rel="noreferrer">Abrir</a><button type="button" class="btn copy" data-copy="https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json">Copiar</button></div></div></article>
-<article class="card"><div class="in"><div class="kind">Servidor secundário</div><h3>Manus</h3><div class="url">https://8328-ip3xbpvu8b97eadkt7gue-a39a30b8.us5.manus.computer/manifest.json</div><div class="st" data-state="check"><i></i><span class="stt">Verificando…</span><small class="stm"></small><div class="bars"><b></b><b></b><b></b><b></b></div></div><div class="act"><a class="btn main" href="stremio://iracemaflix-k8ngt6ft.manus.space/manifest.json">Adicionar</a><a class="btn" href="https://8328-ip3xbpvu8b97eadkt7gue-a39a30b8.us5.manus.computer/manifest.json" target="_blank" rel="noreferrer">Abrir</a><button type="button" class="btn copy" data-copy="https://8328-ip3xbpvu8b97eadkt7gue-a39a30b8.us5.manus.computer/manifest.json">Copiar</button></div></div></article>
-<article class="card"><div class="in"><div class="kind">Servidor alternativo</div><h3>Domínio próprio</h3><div class="url">https://iracemaflix-addon.eu.cc/manifest.json</div><div class="st" data-state="check"><i></i><span class="stt">Verificando…</span><small class="stm"></small><div class="bars"><b></b><b></b><b></b><b></b></div></div><div class="act"><a class="btn main" href="stremio://iracemaflix-addon.eu.cc/manifest.json">Adicionar</a><a class="btn" href="https://iracemaflix-addon.eu.cc/manifest.json" target="_blank" rel="noreferrer">Manifesto</a><button type="button" class="btn copy" data-copy="https://iracemaflix-addon.eu.cc/manifest.json">Copiar</button></div></div></article>
+<article class="card"><div class="in"><div class="kind">Servidor oficial · versão 1.2.0</div><h3>Iracemaflix</h3><div class="url" id="manifestUrl">Carregando endereço…</div><div class="st"><i></i><span id="serverStatus" aria-live="polite">Verificando disponibilidade…</span><div class="bars"><b></b><b></b><b></b><b></b></div></div><div class="act"><a class="btn main" id="installStremio" href="#">Adicionar</a><a class="btn" id="openManifest" href="/manifest.json" target="_blank" rel="noreferrer">Manifesto</a><button type="button" class="btn copy" id="copyManifest" data-copy="">Copiar</button></div></div></article>
 </div>
-<div style="display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin:1rem 0"><button type="button" class="btn recheck" id="recheck">↻ Verificar agora</button><small id="lastcheck" style="color:var(--muted)"></small></div>
-<div class="note"><strong>Dica:</strong> o status é verificado em tempo real no seu navegador (verde = ativo, amarelo = instável/lento, vermelho = offline, cinza = servidor responde mas o navegador não permite confirmar). Se um servidor der erro ao reproduzir, remova o addon antigo e adicione de novo usando outro manifesto.</div>
+<div class="note"><strong>Dica:</strong> se o Stremio não abrir automaticamente, copie o manifesto e cole em Addons.</div>
 </section>
 
 <section class="sec"><h2>Como instalar</h2>
@@ -316,7 +312,7 @@ function mk(p,cls){
     im.onload=function(){d.classList.add('has');d.prepend(im)};im.src=p.img}
   return d}
 function row(list,cls){var r=document.createElement('div');r.className='prow '+cls;list.concat(list).forEach(function(p){r.appendChild(mk(p))});return r}
-var TMDB_KEY='12a263eb78c5a66bf238a09bf48a413b';
+var TMDB_KEY='';
 var ps=document.getElementById('posters');
 function build(list){
   ps.innerHTML='';
@@ -324,7 +320,7 @@ function build(list){
 }
 build(POSTERS);
 /* Em alta na semana (TMDB). Se falhar, ficam as capas animadas. */
-fetch('https://api.themoviedb.org/3/trending/all/week?language=pt-BR&api_key='+TMDB_KEY)
+fetch('/api/home/tmdb?path=trending/all/week&language=pt-BR')
   .then(function(r){return r.json()})
   .then(function(d){
     var l=(d.results||[]).filter(function(x){return x.poster_path}).slice(0,20).map(function(x,i){
@@ -344,7 +340,7 @@ function fill(id,items){
     r.appendChild(a)})}
 function shelf(id,type,q){
   fill(id,POSTERS);
-  fetch('https://api.themoviedb.org/3/'+(q||'trending/'+type+'/week?')+'&language=pt-BR&api_key='+TMDB_KEY)
+  fetch('/api/home/tmdb?path='+encodeURIComponent((q||'trending/'+type+'/week?').replace(/\?$/, ''))+'&language=pt-BR')
     .then(function(r){return r.json()})
     .then(function(d){
       var l=(d.results||[]).filter(function(x){return x.poster_path}).slice(0,18).map(function(x,i){
@@ -396,7 +392,7 @@ document.querySelectorAll('[data-r]').forEach(function(b){b.addEventListener('cl
   function show(i){sl.forEach(function(s,k){s.el.classList.toggle('on',k===i)});cap.textContent=sl[i].cap||''}
   function add(src,c){var im=new Image();im.alt='';im.className='hs';im.referrerPolicy='no-referrer';
     im.onload=function(){box.insertBefore(im,cap);sl.push({el:im,cap:c});if(sl.length===1)show(0)};im.src=src}
-  fetch('https://api.themoviedb.org/3/trending/all/week?language=pt-BR&api_key='+TMDB_KEY)
+  fetch('/api/home/tmdb?path=trending/all/week&language=pt-BR')
     .then(function(r){return r.json()})
     .then(function(d){(d.results||[]).filter(function(x){return x.backdrop_path}).slice(0,8).forEach(function(x){
       add('https://image.tmdb.org/t/p/w780'+x.backdrop_path,x.title||x.name)})}).catch(function(){});
@@ -486,94 +482,6 @@ function frame(){t+=.01;var w=innerWidth,h=innerHeight;cx.clearRect(0,0,w,h);
     if(d<160){cx.strokeStyle='rgba(34,227,196,'+(.5*(1-d/160))+')';cx.beginPath();cx.moveTo(p.x,p.y);cx.lineTo(mouse.x,mouse.y);cx.stroke()}}
   requestAnimationFrame(frame)}
 if(!matchMedia('(prefers-reduced-motion:reduce)').matches)frame();
-
-/* ============ CHECK REAL DOS ADDONS ============
-   Por tentativa (3x): 1) lê o manifest.json e valida; 2) pede o primeiro catálogo
-   do próprio manifesto e exige que venha com itens (prova que o backend funciona).
-   ATIVO    : manifesto + catálogo OK nas 3 tentativas, mediana < 2500 ms
-   INSTÁVEL : falhas parciais ou lento
-   OFFLINE  : manifesto não responde, ou catálogo falha em todas as tentativas
-   SEM LEITURA: o servidor responde, mas o navegador bloqueia ler (CORS) - não dá p/ afirmar */
-(function(){
-  var TRIES=3,TIMEOUT=10000,SLOW=2500,EVERY=60000,busy=false;
-  function bad(e){
-    var m=e.name==='AbortError'?'timeout':e.name==='SyntaxError'?'resposta não é JSON (página de erro ou servidor parado)':e.name==='TypeError'?'sem acesso (rede ou CORS)':(e.message||'falha');
-    var x=new Error(m);x.net=e.name==='TypeError';return x}
-  function get(url){
-    var c=new AbortController(),to=setTimeout(function(){c.abort()},TIMEOUT);
-    return fetch(url,{signal:c.signal,cache:'no-store',credentials:'omit'})
-      .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()})
-      .then(function(j){clearTimeout(to);return j},function(e){clearTimeout(to);throw bad(e)});
-  }
-  function reach(url){
-    var c=new AbortController(),to=setTimeout(function(){c.abort()},TIMEOUT);
-    return fetch(url,{mode:'no-cors',signal:c.signal,cache:'no-store',credentials:'omit'})
-      .then(function(){clearTimeout(to);return true},function(){clearTimeout(to);return false});
-  }
-  function probe(url){
-    var t0=performance.now();
-    return get(url).then(function(j){
-      if(!j||typeof j!=='object'||!(j.id||j.name)||!(j.resources||j.catalogs))throw new Error('manifesto inválido');
-      var ms=Math.round(performance.now()-t0);
-      var cat=(j.catalogs||[]).filter(function(c){return !(c.extra||[]).some(function(e){return e.isRequired})})[0];
-      if(!cat)return {ok:true,ms:ms,cat:null};
-      var cu=url.replace(/manifest\.json.*$/,'')+'catalog/'+cat.type+'/'+encodeURIComponent(cat.id)+'.json';
-      return get(cu).then(function(c){
-        var n=c&&c.metas?c.metas.length:0;
-        return {ok:true,ms:ms,cat:n>0,catErr:n>0?'':'catálogo vazio'};
-      },function(e){return {ok:true,ms:ms,cat:false,catErr:'catálogo: '+e.message}});
-    }).catch(function(e){
-      var ms=Math.round(performance.now()-t0);
-      if(!e.net)return {ok:false,ms:ms,err:e.message};
-      return reach(url).then(function(up){
-        return up?{ok:false,unk:true,ms:ms,err:'servidor responde, mas o navegador bloqueia a leitura (CORS)'}
-                 :{ok:false,ms:ms,err:'sem conexão com o servidor'}});
-    });
-  }
-  function seq(url){
-    var out=[],p=Promise.resolve();
-    for(var i=0;i<TRIES;i++)p=p.then(function(){return probe(url).then(function(r){out.push(r)})}).then(function(){return new Promise(function(z){setTimeout(z,350)})});
-    return p.then(function(){return out});
-  }
-  function classify(rs){
-    var good=rs.filter(function(r){return r.ok});
-    if(!good.length){
-      if(rs.some(function(r){return r.unk}))return {s:'unk',txt:'Sem leitura',msg:rs[rs.length-1].err};
-      return {s:'down',txt:'Offline',msg:rs[rs.length-1].err||'sem resposta'};
-    }
-    var full=good.filter(function(r){return r.cat!==false});
-    var ce=(good.filter(function(r){return r.cat===false})[0]||{}).catErr||'';
-    if(!full.length)return {s:'down',txt:'Offline',msg:'manifesto responde, mas '+ce};
-    var ms=full.map(function(r){return r.ms}).sort(function(a,b){return a-b}),med=ms[Math.floor(ms.length/2)];
-    if(full.length<rs.length)return {s:'slow',txt:'Instável',msg:full.length+'/'+rs.length+' ok'+(ce?' · '+ce:'')+' · '+med+' ms'};
-    if(med>=SLOW)return {s:'slow',txt:'Instável',msg:'lento · '+med+' ms'};
-    return {s:'ok',txt:'Ativo',msg:med+' ms'};
-  }
-  function paint(card,res){
-    var st=card.querySelector('.st');st.dataset.state=res.s;st.title=res.msg;
-    st.querySelector('.stt').textContent=res.txt;st.querySelector('.stm').textContent=res.msg;
-  }
-  function run(){
-    if(busy)return;busy=true;
-    var btn=document.getElementById('recheck'),lc=document.getElementById('lastcheck');
-    if(btn){btn.disabled=true;btn.textContent='Verificando…'}
-    var cards=[].slice.call(document.querySelectorAll('#servidores .card'));
-    cards.forEach(function(c){var s=c.querySelector('.st');s.dataset.state='check';s.querySelector('.stt').textContent='Verificando…';s.querySelector('.stm').textContent=''});
-    Promise.all(cards.map(function(c){
-      var u=c.querySelector('.copy').dataset.copy;
-      return seq(u).then(function(rs){paint(c,classify(rs))});
-    })).then(function(){
-      busy=false;
-      var sts=cards.map(function(c){return c.querySelector('.st').dataset.state}),lv=document.querySelector('.live span');
-      if(lv&&sts.indexOf('unk')<0)lv.textContent=sts.indexOf('ok')>-1?'Servidores online':(sts.indexOf('slow')>-1?'Servidores instáveis':'Servidores offline');
-      if(btn){btn.disabled=false;btn.textContent='↻ Verificar agora'}
-      if(lc)lc.textContent='Última verificação: '+new Date().toLocaleTimeString('pt-BR');
-    });
-  }
-  var b=document.getElementById('recheck');if(b)b.addEventListener('click',run);
-  run();setInterval(function(){if(!document.hidden)run()},EVERY);
-  document.addEventListener('visibilitychange',function(){if(!document.hidden)run()});
-})();
 </script>
 
 <style>
@@ -654,6 +562,22 @@ $('ai-form').onsubmit=function(e){
   musicPlay.onclick=function(){if(!musicAudio.src)return; if(musicAudio.paused)musicAudio.play().catch(function(){musicStatus.textContent='Toque novamente em Reproduzir para iniciar o áudio.'});else musicAudio.pause()};
   musicAudio.onplay=function(){musicPlay.textContent='❚❚ Pausar'};musicAudio.onpause=function(){musicPlay.textContent='▶ Reproduzir'};musicAudio.onloadedmetadata=function(){musicSeek.max=musicAudio.duration||100;musicTotal.textContent=clock(musicAudio.duration)};musicAudio.ontimeupdate=function(){musicSeek.value=musicAudio.currentTime||0;musicCurrent.textContent=clock(musicAudio.currentTime)};musicSeek.oninput=function(){musicAudio.currentTime=Number(musicSeek.value)||0};
   musicForm.onsubmit=function(e){e.preventDefault();var q=musicIn.value.trim();if(!q)return;musicStatus.textContent='Pesquisando…';musicResults.innerHTML='';musicAudio.pause();musicAudio.removeAttribute('src');musicPlayer.hidden=true;fetch(BASE+'/api/iracemaAI/pesquisayt?query='+encodeURIComponent(q)).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Pesquisa indisponível');return j})}).then(function(j){var list=Array.isArray(j.formattedVideos)?j.formattedVideos:[];if(!list.length){musicStatus.textContent='Nenhum resultado encontrado.';return}musicStatus.textContent=list.length+' resultados';musicResults.innerHTML=list.slice(0,8).map(function(v){var id=(String(v.link||'').match(/[?&]v=([^&]+)/)||[])[1]||'';return '<article class="music-card"><img src="'+esc(v.thumbnail)+'" alt=""><div><b>'+esc(v.title)+'</b><small>'+esc(v.channel||v.creator||'YouTube')+' · '+esc(v.duration||'')+'</small></div><button type="button" data-id="'+esc(id)+'" data-title="'+esc(v.title)+'" data-artist="'+esc(v.channel||v.creator||'YouTube')+'" data-thumb="'+esc(v.thumbnail)+'" data-url="'+esc(v.link)+'" aria-label="Reproduzir">▶</button></article>'}).join('');Array.prototype.forEach.call(musicResults.querySelectorAll('button'),function(b){b.onclick=function(){musicName=b.dataset.title;if(!musicName)return;musicStatus.textContent='Carregando áudio…';musicTitle.textContent=b.dataset.title;musicArtist.textContent=b.dataset.artist||'YouTube';musicCover.src=b.dataset.thumb||'';musicAudio.src=BASE+'/api/iracemaAI/musica?name='+encodeURIComponent(musicName);musicDownload.href=BASE+'/api/iracemaAI/musica?name='+encodeURIComponent(musicName)+'&download=1';musicSource.href=b.dataset.url||'#';musicPlayer.hidden=false;musicPlayer.scrollIntoView({block:'nearest'});musicSeek.value=0;musicCurrent.textContent='0:00';musicTotal.textContent=b.querySelector('small')?.textContent.split(' · ').pop()||'0:00';musicAudio.load();musicAudio.play().catch(function(){musicStatus.textContent='Áudio carregado. Toque em Reproduzir.'})}})}).catch(function(err){musicStatus.textContent=err.message||'Falha na pesquisa.'})};
+})();
+</script>
+<script>
+(function(){
+  var origin=window.location.origin,host=window.location.host;
+  var manifest=origin+'/manifest.json',stremio='stremio://'+host+'/manifest.json';
+  var url=document.getElementById('manifestUrl'),add=document.getElementById('installStremio');
+  var open=document.getElementById('openManifest'),copy=document.getElementById('copyManifest');
+  if(url)url.textContent=manifest;
+  if(add)add.href=stremio;
+  if(open)open.href=manifest;
+  if(copy)copy.dataset.copy=manifest;
+  fetch('/healthz',{cache:'no-store'}).then(function(r){
+    var s=document.getElementById('serverStatus');
+    if(s)s.textContent=r.ok?'Online':'Indisponível';
+  }).catch(function(){var s=document.getElementById('serverStatus');if(s)s.textContent='Indisponível';});
 })();
 </script>
 </body>

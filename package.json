@@ -17,5 +17,6 @@
     "express": "^4.21.2",
     "stremio-addon-sdk": "^1.6.10",
     "undici": "8.12.4"
-  }
+  },
+  "packageManager": "npm@10.9.9"
 }
