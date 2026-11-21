@@ -7751,7 +7751,7 @@ function addonPublicBaseUrl() {
 function isAllowedReiMediaUrl(value) {
   try {
     const host = new URL(value).hostname.toLowerCase();
-    return /^((atlas\.mediastream\.best)|(asgard\.fastimg\.live))$/i.test(host);
+    return /^((atlas\.mediastream\.best)|(asgard\.fastimg\.live)|(p\d+\.tiktokcdn\.com))$/i.test(host);
   } catch {
     return false;
   }
@@ -8122,6 +8122,14 @@ app.get('/live-tv/health', async (_req, res) => {
   } catch (error) {
     res.status(502).json({ ok: false, error: error.message });
   }
+});
+app.use((req, res, next) => {
+  if (/^\/(?:manifest\.json|catalog\/|meta\/|stream\/)/i.test(String(req.path || ''))) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
 });
 app.use(getRouter(builder.getInterface()));
 app.get('/', (_req, res) => {
