@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#05070d">
 <title>Iracemaflix · Servidores</title>
+<link rel="icon" href="/assets/favicon-32x32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<meta property="og:image" content="/assets/android-chrome-512x512.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -29,6 +32,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:.4rem 
 .brand{display:flex;align-items:center;gap:.75rem;font:700 1rem Unbounded,sans-serif;letter-spacing:.04em}
 .mark{width:2.4rem;height:2.4rem;display:grid;place-items:center;background:linear-gradient(135deg,var(--a),var(--b));clip-path:polygon(0 0,100% 0,100% 70%,70% 100%,0 100%);animation:pulse 3s ease-in-out infinite}
 @keyframes pulse{50%{filter:brightness(1.35) drop-shadow(0 0 10px var(--a))}}
+.mark img{width:100%;height:100%;object-fit:cover;border-radius:.35rem;display:block}
 .live{display:flex;align-items:center;gap:.5rem;color:var(--muted);font-size:.85rem;font-weight:600}
 .live i,.st i{width:.55rem;height:.55rem;border-radius:50%;background:var(--ok);animation:ping 1.8s infinite}
 @keyframes ping{0%{box-shadow:0 0 0 0 #35d07f90}100%{box-shadow:0 0 0 .8rem #35d07f00}}
@@ -193,6 +197,14 @@ footer{margin-top:3.5rem;padding-top:1.4rem;border-top:1px solid var(--line);col
 @media(min-width:1800px){main{width:min(92rem,calc(100% - 6rem))}}
 @media(hover:none){.card,.fp{transform:none!important}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}h1 .w{opacity:1;transform:none}.rv,.card{opacity:1;transform:none}}
+
+.st[data-state=check],.st[data-state=unk]{color:var(--muted)}.st[data-state=check] i,.st[data-state=check] .bars b,.st[data-state=unk] i,.st[data-state=unk] .bars b{background:#8d9ab3}
+.st[data-state=ok]{color:#bcefd1}
+.st[data-state=slow]{color:#ffe29a}.st[data-state=slow] i,.st[data-state=slow] .bars b{background:#ffc24a}
+.st[data-state=down]{color:#ffb3b3}.st[data-state=down] i,.st[data-state=down] .bars b{background:#ff5d5d;animation:none}
+.st[data-state=down] .bars b{height:2px!important}
+.stm{color:var(--muted);font-weight:600;font-size:.74rem}
+.recheck{margin-top:.8rem}
 </style>
 </head>
 <body>
@@ -200,7 +212,7 @@ footer{margin-top:3.5rem;padding-top:1.4rem;border-top:1px solid var(--line);col
 <canvas id="fx"></canvas><div class="grain"></div>
 <div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div><div id="glow"></div>
 <main>
-<nav><div class="brand"><div class="mark">▶</div>IRACEMAFLIX</div><div class="live"><i></i><span>Servidores online</span></div></nav>
+<nav><div class="brand"><div class="mark"><img src="/assets/android-chrome-192x192.png" alt="Ícone Iracemaflix"></div>IRACEMAFLIX</div><div class="live"><i></i><span>Servidores online</span></div></nav>
 
 <section class="hero">
 <div class="hbg" id="hbg" aria-hidden="true"></div>
@@ -251,14 +263,12 @@ footer{margin-top:3.5rem;padding-top:1.4rem;border-top:1px solid var(--line);col
 
 <section class="sec" id="servidores"><h2>Instale no Stremio</h2><p>Escolha um manifesto e toque em Adicionar.</p>
 <div class="servers">
-<article class="card"><div class="in"><div class="kind">Servidor primário</div><h3>BeamUp</h3><div class="url">https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json</div><div class="st"><i></i>Estável<div class="bars"><b></b><b></b><b></b><b></b></div></div><div class="act"><a class="btn main" href="stremio://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json">Adicionar</a><a class="btn" href="https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json" target="_blank" rel="noreferrer">Abrir</a><button type="button" class="btn copy" data-copy="https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json">Copiar</button></div></div></article>
-<article class="card"><div class="in"><div class="kind">Servidor secundário</div><h3>Manus</h3><div class="url">
-https://8328-ip3xbpvu8b97eadkt7gue-a39a30b8.us5.manus.computer/manifest.json</div><div class="st"><i></i>Estável<div class="bars"><b></b><b></b><b></b><b></b></div></div><div class="act"><a class="btn main" href="stremio://iracemaflix-k8ngt6ft.manus.space/manifest.json">Adicionar</a><a class="btn" href="
-https://8328-ip3xbpvu8b97eadkt7gue-a39a30b8.us5.manus.computer/manifest.json" target="_blank" rel="noreferrer">Abrir</a><button type="button" class="btn copy" data-copy="
-https://8328-ip3xbpvu8b97eadkt7gue-a39a30b8.us5.manus.computer/manifest.json">Copiar</button></div></div></article>
-<article class="card"><div class="in"><div class="kind">Servidor alternativo</div><h3>Domínio próprio</h3><div class="url">https://iracemaflix-addon.eu.cc/manifest.json</div><div class="st"><i></i>Estável<div class="bars"><b></b><b></b><b></b><b></b></div></div><div class="act"><a class="btn main" href="stremio://iracemaflix-addon.eu.cc/manifest.json">Adicionar</a><a class="btn" href="https://iracemaflix-addon.eu.cc/manifest.json" target="_blank" rel="noreferrer">Manifesto</a><button type="button" class="btn copy" data-copy="https://iracemaflix-addon.eu.cc/manifest.json">Copiar</button></div></div></article>
+<article class="card"><div class="in"><div class="kind">Servidor primário</div><h3>BeamUp</h3><div class="url">https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json</div><div class="st" data-state="check"><i></i><span class="stt">Verificando…</span><small class="stm"></small><div class="bars"><b></b><b></b><b></b><b></b></div></div><div class="act"><a class="btn main" href="stremio://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json">Adicionar</a><a class="btn" href="https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json" target="_blank" rel="noreferrer">Abrir</a><button type="button" class="btn copy" data-copy="https://6880ee460bc3-iracemaflix.baby-beamup.club/manifest.json">Copiar</button></div></div></article>
+<article class="card"><div class="in"><div class="kind">Servidor secundário</div><h3>Manus</h3><div class="url">https://8328-ip3xbpvu8b97eadkt7gue-a39a30b8.us5.manus.computer/manifest.json</div><div class="st" data-state="check"><i></i><span class="stt">Verificando…</span><small class="stm"></small><div class="bars"><b></b><b></b><b></b><b></b></div></div><div class="act"><a class="btn main" href="stremio://iracemaflix-k8ngt6ft.manus.space/manifest.json">Adicionar</a><a class="btn" href="https://8328-ip3xbpvu8b97eadkt7gue-a39a30b8.us5.manus.computer/manifest.json" target="_blank" rel="noreferrer">Abrir</a><button type="button" class="btn copy" data-copy="https://8328-ip3xbpvu8b97eadkt7gue-a39a30b8.us5.manus.computer/manifest.json">Copiar</button></div></div></article>
+<article class="card"><div class="in"><div class="kind">Servidor alternativo</div><h3>Domínio próprio</h3><div class="url">https://iracemaflix-addon.eu.cc/manifest.json</div><div class="st" data-state="check"><i></i><span class="stt">Verificando…</span><small class="stm"></small><div class="bars"><b></b><b></b><b></b><b></b></div></div><div class="act"><a class="btn main" href="stremio://iracemaflix-addon.eu.cc/manifest.json">Adicionar</a><a class="btn" href="https://iracemaflix-addon.eu.cc/manifest.json" target="_blank" rel="noreferrer">Manifesto</a><button type="button" class="btn copy" data-copy="https://iracemaflix-addon.eu.cc/manifest.json">Copiar</button></div></div></article>
 </div>
-<div class="note"><strong>Dica:</strong> a bolinha verde indica o endereço configurado. Se um servidor der erro ao reproduzir, remova o addon antigo e adicione de novo usando outro manifesto.</div>
+<div style="display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin:1rem 0"><button type="button" class="btn recheck" id="recheck">↻ Verificar agora</button><small id="lastcheck" style="color:var(--muted)"></small></div>
+<div class="note"><strong>Dica:</strong> o status é verificado em tempo real no seu navegador (verde = ativo, amarelo = instável/lento, vermelho = offline, cinza = servidor responde mas o navegador não permite confirmar). Se um servidor der erro ao reproduzir, remova o addon antigo e adicione de novo usando outro manifesto.</div>
 </section>
 
 <section class="sec"><h2>Como instalar</h2>
@@ -476,6 +486,175 @@ function frame(){t+=.01;var w=innerWidth,h=innerHeight;cx.clearRect(0,0,w,h);
     if(d<160){cx.strokeStyle='rgba(34,227,196,'+(.5*(1-d/160))+')';cx.beginPath();cx.moveTo(p.x,p.y);cx.lineTo(mouse.x,mouse.y);cx.stroke()}}
   requestAnimationFrame(frame)}
 if(!matchMedia('(prefers-reduced-motion:reduce)').matches)frame();
+
+/* ============ CHECK REAL DOS ADDONS ============
+   Por tentativa (3x): 1) lê o manifest.json e valida; 2) pede o primeiro catálogo
+   do próprio manifesto e exige que venha com itens (prova que o backend funciona).
+   ATIVO    : manifesto + catálogo OK nas 3 tentativas, mediana < 2500 ms
+   INSTÁVEL : falhas parciais ou lento
+   OFFLINE  : manifesto não responde, ou catálogo falha em todas as tentativas
+   SEM LEITURA: o servidor responde, mas o navegador bloqueia ler (CORS) - não dá p/ afirmar */
+(function(){
+  var TRIES=3,TIMEOUT=10000,SLOW=2500,EVERY=60000,busy=false;
+  function bad(e){
+    var m=e.name==='AbortError'?'timeout':e.name==='SyntaxError'?'resposta não é JSON (página de erro ou servidor parado)':e.name==='TypeError'?'sem acesso (rede ou CORS)':(e.message||'falha');
+    var x=new Error(m);x.net=e.name==='TypeError';return x}
+  function get(url){
+    var c=new AbortController(),to=setTimeout(function(){c.abort()},TIMEOUT);
+    return fetch(url,{signal:c.signal,cache:'no-store',credentials:'omit'})
+      .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()})
+      .then(function(j){clearTimeout(to);return j},function(e){clearTimeout(to);throw bad(e)});
+  }
+  function reach(url){
+    var c=new AbortController(),to=setTimeout(function(){c.abort()},TIMEOUT);
+    return fetch(url,{mode:'no-cors',signal:c.signal,cache:'no-store',credentials:'omit'})
+      .then(function(){clearTimeout(to);return true},function(){clearTimeout(to);return false});
+  }
+  function probe(url){
+    var t0=performance.now();
+    return get(url).then(function(j){
+      if(!j||typeof j!=='object'||!(j.id||j.name)||!(j.resources||j.catalogs))throw new Error('manifesto inválido');
+      var ms=Math.round(performance.now()-t0);
+      var cat=(j.catalogs||[]).filter(function(c){return !(c.extra||[]).some(function(e){return e.isRequired})})[0];
+      if(!cat)return {ok:true,ms:ms,cat:null};
+      var cu=url.replace(/manifest\.json.*$/,'')+'catalog/'+cat.type+'/'+encodeURIComponent(cat.id)+'.json';
+      return get(cu).then(function(c){
+        var n=c&&c.metas?c.metas.length:0;
+        return {ok:true,ms:ms,cat:n>0,catErr:n>0?'':'catálogo vazio'};
+      },function(e){return {ok:true,ms:ms,cat:false,catErr:'catálogo: '+e.message}});
+    }).catch(function(e){
+      var ms=Math.round(performance.now()-t0);
+      if(!e.net)return {ok:false,ms:ms,err:e.message};
+      return reach(url).then(function(up){
+        return up?{ok:false,unk:true,ms:ms,err:'servidor responde, mas o navegador bloqueia a leitura (CORS)'}
+                 :{ok:false,ms:ms,err:'sem conexão com o servidor'}});
+    });
+  }
+  function seq(url){
+    var out=[],p=Promise.resolve();
+    for(var i=0;i<TRIES;i++)p=p.then(function(){return probe(url).then(function(r){out.push(r)})}).then(function(){return new Promise(function(z){setTimeout(z,350)})});
+    return p.then(function(){return out});
+  }
+  function classify(rs){
+    var good=rs.filter(function(r){return r.ok});
+    if(!good.length){
+      if(rs.some(function(r){return r.unk}))return {s:'unk',txt:'Sem leitura',msg:rs[rs.length-1].err};
+      return {s:'down',txt:'Offline',msg:rs[rs.length-1].err||'sem resposta'};
+    }
+    var full=good.filter(function(r){return r.cat!==false});
+    var ce=(good.filter(function(r){return r.cat===false})[0]||{}).catErr||'';
+    if(!full.length)return {s:'down',txt:'Offline',msg:'manifesto responde, mas '+ce};
+    var ms=full.map(function(r){return r.ms}).sort(function(a,b){return a-b}),med=ms[Math.floor(ms.length/2)];
+    if(full.length<rs.length)return {s:'slow',txt:'Instável',msg:full.length+'/'+rs.length+' ok'+(ce?' · '+ce:'')+' · '+med+' ms'};
+    if(med>=SLOW)return {s:'slow',txt:'Instável',msg:'lento · '+med+' ms'};
+    return {s:'ok',txt:'Ativo',msg:med+' ms'};
+  }
+  function paint(card,res){
+    var st=card.querySelector('.st');st.dataset.state=res.s;st.title=res.msg;
+    st.querySelector('.stt').textContent=res.txt;st.querySelector('.stm').textContent=res.msg;
+  }
+  function run(){
+    if(busy)return;busy=true;
+    var btn=document.getElementById('recheck'),lc=document.getElementById('lastcheck');
+    if(btn){btn.disabled=true;btn.textContent='Verificando…'}
+    var cards=[].slice.call(document.querySelectorAll('#servidores .card'));
+    cards.forEach(function(c){var s=c.querySelector('.st');s.dataset.state='check';s.querySelector('.stt').textContent='Verificando…';s.querySelector('.stm').textContent=''});
+    Promise.all(cards.map(function(c){
+      var u=c.querySelector('.copy').dataset.copy;
+      return seq(u).then(function(rs){paint(c,classify(rs))});
+    })).then(function(){
+      busy=false;
+      var sts=cards.map(function(c){return c.querySelector('.st').dataset.state}),lv=document.querySelector('.live span');
+      if(lv&&sts.indexOf('unk')<0)lv.textContent=sts.indexOf('ok')>-1?'Servidores online':(sts.indexOf('slow')>-1?'Servidores instáveis':'Servidores offline');
+      if(btn){btn.disabled=false;btn.textContent='↻ Verificar agora'}
+      if(lc)lc.textContent='Última verificação: '+new Date().toLocaleTimeString('pt-BR');
+    });
+  }
+  var b=document.getElementById('recheck');if(b)b.addEventListener('click',run);
+  run();setInterval(function(){if(!document.hidden)run()},EVERY);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)run()});
+})();
+</script>
+
+<style>
+#ai-fab{position:fixed;right:max(1rem,env(safe-area-inset-right));bottom:max(1rem,env(safe-area-inset-bottom));z-index:60;width:3.4rem;height:3.4rem;border:0;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--b));color:#fff;font-size:1.4rem;cursor:pointer;box-shadow:0 .6rem 1.8rem #348cfe66}
+#ai-fab:focus-visible,#ai-send:focus-visible{outline:2px solid var(--c);outline-offset:3px}
+#ai{position:fixed;right:max(1rem,env(safe-area-inset-right));bottom:5.2rem;z-index:60;width:min(24rem,calc(100vw - 2rem));height:min(32rem,calc(100dvh - 7rem));display:none;flex-direction:column;border:1px solid var(--line);border-radius:1.1rem;background:#0b1120f2;backdrop-filter:blur(12px);box-shadow:0 1.5rem 4rem #000a;overflow:hidden;font:400 .9rem Manrope,sans-serif;color:var(--text)}
+#ai.on{display:flex}
+#ai header{display:flex;gap:.5rem;align-items:center;padding:.7rem .9rem;border-bottom:1px solid var(--line);font-weight:800}
+#ai header b{flex:1;font-family:Unbounded,sans-serif;font-size:.8rem}
+#ai select{max-width:10.5rem;background:#141d33;color:var(--text);border:1px solid #33446a;border-radius:.6rem;padding:.3rem .4rem;font:inherit;font-size:.78rem}
+#ai-log{flex:1;overflow-y:auto;padding:.9rem;display:flex;flex-direction:column;gap:.6rem}
+.am{max-width:85%;padding:.55rem .8rem;border-radius:.9rem;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.am.u{align-self:flex-end;background:var(--a);color:#fff}
+.am.b{align-self:flex-start;background:#141d33}
+.am.e{color:#ff9b9b}
+#ai form{display:flex;gap:.5rem;padding:.7rem;border-top:1px solid var(--line)}
+#ai-in{flex:1;min-width:0;background:#05070d;color:var(--text);border:1px solid #33446a;border-radius:.7rem;padding:.6rem .7rem;font:inherit}
+#ai-send{border:0;border-radius:.7rem;padding:0 .9rem;background:var(--a);color:#fff;font-weight:800;cursor:pointer}
+#ai-send:disabled{opacity:.5}
+#ai-tools{padding:.65rem .7rem;border-top:1px solid var(--line);background:#080d19}
+#music-toggle{width:100%;border:1px solid #33446a;border-radius:.65rem;padding:.6rem;background:linear-gradient(120deg,#172b50,#241548);color:#fff;font-weight:800;cursor:pointer}
+#music-panel{margin-top:.6rem}.music-search{display:flex;gap:.4rem}.music-search input{flex:1;min-width:0;background:#05070d;color:var(--text);border:1px solid #33446a;border-radius:.55rem;padding:.55rem}.music-search button{border:0;border-radius:.55rem;background:var(--c);color:#03131a;font-weight:900;padding:0 .75rem;cursor:pointer}
+#music-status{color:var(--muted);font-size:.75rem;margin:.5rem 0}.music-results{display:flex;flex-direction:column;gap:.45rem;max-height:10rem;overflow:auto}.music-card{display:grid;grid-template-columns:3.1rem 1fr auto;gap:.55rem;align-items:center;padding:.45rem;border:1px solid #263654;border-radius:.65rem;background:#101a2b}.music-card img{width:3.1rem;height:2.2rem;object-fit:cover;border-radius:.4rem}.music-card b{display:block;font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.music-card small{display:block;color:var(--muted);font-size:.65rem;margin-top:.2rem}.music-card button{border:0;border-radius:50%;width:2rem;height:2rem;background:var(--a);color:#fff;font-weight:900;cursor:pointer}.music-player{margin-top:.6rem;border:1px solid #33446a;border-radius:1rem;padding:.75rem;background:radial-gradient(circle at 10% 0,#348cfe33,transparent 55%),linear-gradient(135deg,#101a2b,#080d19);box-shadow:0 .7rem 1.8rem #0005}.music-now{display:grid;grid-template-columns:4.5rem 1fr;gap:.75rem;align-items:center}.music-now img{width:4.5rem;height:4.5rem;object-fit:cover;border-radius:.75rem;box-shadow:0 .35rem 1rem #0008}.music-now b{display:block;font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.music-now small{display:block;color:var(--muted);font-size:.68rem;margin-top:.3rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.music-progress{display:flex;align-items:center;gap:.45rem;margin-top:.75rem}.music-progress input{flex:1;accent-color:var(--c);height:1rem}.music-time{color:var(--muted);font-size:.62rem;min-width:2.5rem;text-align:center}.music-actions{display:flex;gap:.5rem;margin-top:.65rem}.music-actions button,.music-actions a{display:inline-flex;align-items:center;justify-content:center;min-height:2.3rem;border:1px solid #33446a;border-radius:.6rem;padding:0 .8rem;color:#fff;font-weight:800;font-size:.72rem;text-decoration:none;cursor:pointer}.music-actions button{background:linear-gradient(135deg,var(--a),var(--b));border:0;min-width:5.2rem}.music-actions a{background:#101a2b;color:var(--c)}.music-player audio{display:none}
+@media(max-width:600px){#music-player{position:fixed;left:.6rem;right:.6rem;bottom:calc(.6rem + env(safe-area-inset-bottom));z-index:90;margin:0;padding:.65rem;border-radius:.9rem;box-shadow:0 .8rem 2.5rem #000d}.music-now{grid-template-columns:3.4rem 1fr;gap:.6rem}.music-now img{width:3.4rem;height:3.4rem}.music-now b{font-size:.76rem}.music-now small{font-size:.64rem}.music-progress{margin-top:.55rem}.music-actions{margin-top:.5rem;gap:.35rem}.music-actions button,.music-actions a{min-height:2.15rem;padding:0 .55rem;font-size:.66rem}.music-actions button{min-width:4.8rem}}
+</style>
+<button id="ai-fab" aria-label="Abrir assistente" aria-expanded="false">✦</button>
+<section id="ai" role="dialog" aria-label="IracemaAI Iracemaflix">
+<header><b>IracemaAI</b><select id="ai-model" aria-label="Escolher IA"></select></header>
+<div id="ai-log" aria-live="polite"></div>
+<form id="ai-form"><input id="ai-in" placeholder="Pergunte algo…" maxlength="500" autocomplete="off"><button id="ai-send">Enviar</button></form>
+<div id="ai-tools"><button id="music-toggle" type="button">♪ Ouvir música</button><div id="music-panel" hidden><form id="music-form" class="music-search"><input id="music-in" placeholder="Pesquisar música ou artista" maxlength="120"><button>Buscar</button></form><div id="music-status"></div><div id="music-results" class="music-results"></div><div id="music-player" class="music-player" hidden><div class="music-now"><img id="music-cover" alt="Capa da música"><div><b id="music-title">Escolha uma música</b><small id="music-artist">Iracema Music</small></div></div><div class="music-progress"><span id="music-current" class="music-time">0:00</span><input id="music-seek" type="range" min="0" max="100" value="0" aria-label="Progresso da música"><span id="music-total" class="music-time">0:00</span></div><div class="music-actions"><button id="music-play" type="button">▶ Reproduzir</button><a id="music-download" download>⇩ Baixar MP3</a><a id="music-source" target="_blank" rel="noopener">Fonte</a></div><audio id="music-audio" preload="none"></audio></div></div></div>
+</section>
+<script>
+(function(){
+/* API gratuita (sem chave). O nome do modelo é a rota: BASE + /api/<modelo>?texto=... */
+var BASE=location.origin;
+var MODELOS='lady gpt-5.5 grok-4.7 grok-4-7 grok-4.6 grok-4-6 grok-4-5 gpt-6-astra gpt-6.1-sol gpt-6-sol gpt-6-luna gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna gpt-5.4 gpt-5.4-mini gpt-5 gpt-5-chat-latest gpt-4o gpt-4o-2024-11-20 gpt-4.1-mini gpt-4.1-nano gemini-4-argon gemini-3.8-flash gemini-3.7-flash gemini-3.6-flash gemini-3.5-flash gemini-3.1-pro gemini-3.1-pro-preview gemini-3.1-flash-lite gemini-3.1-flash-lite-preview gemini-3-flash gemini-3-flash-preview gemini-2.5-pro gemini-3.1-pro-preview-vertex gemini-2.5-pro-vertex deepseek-v4.1-flash deepseek-v4-pro deepseek-v4-pro-0813 kimi-k3 kimi-k2.7-code kimi-k2.6 glm-5.3-flash glm-5.3 glm-5.2 minimax-m3 qwen3.7-max'.split(' ');
+var FAM={grok:'Grok',gpt:'GPT',gemini:'Gemini',deepseek:'DeepSeek',kimi:'Kimi',glm:'GLM',minimax:'MiniMax',qwen:'Qwen'};
+var MODEL_LABELS={lady:'IracemaAI'};
+var SYSTEM='Você é a assistente do Iracemaflix (filmes, séries e canais ao vivo via addon do Stremio). Responda em português, curto e simpático. Ajude a instalar: botão Adicionar, Copiar link e colar em Addons, ou QR na TV.';
+function pick(j){
+  if(typeof j==='string')return j;if(!j||typeof j!=='object')return '';
+  var k=['resposta','response','result','text','texto','answer','message','content','reply','output','data'];
+  for(var i=0;i<k.length;i++){if(j[k[i]]!=null){var v=pick(j[k[i]]);if(v)return v}}
+  if(j.choices&&j.choices[0])return pick(j.choices[0].message||j.choices[0].text);
+  return '';
+}
+function ask(rota,msgs){
+  var ctx=msgs.slice(-4).map(function(m){return (m.role==='user'?'Usuário: ':'Assistente: ')+m.content}).join('\n').slice(-900);
+  var url=BASE+'/api/iracemaAI/'+encodeURIComponent(rota)+'?texto='+encodeURIComponent(SYSTEM+'\n\n'+ctx+'\nAssistente:');
+  var c=new AbortController(),t=setTimeout(function(){c.abort()},60000);
+  return fetch(url,{signal:c.signal}).then(function(r){return r.text().then(function(x){
+    clearTimeout(t);var j=x;try{j=JSON.parse(x)}catch(e){}
+    if(!r.ok)throw new Error(r.status===404?'Esse modelo não está disponível. Tente outro.':r.status===429?'Muitas mensagens. Aguarde um instante.':'Erro '+r.status+' nesse modelo. Tente outro.');
+    if(j&&j.success===false)throw new Error(String(j.error||j.message||'Esse modelo falhou. Tente outro.'));var a=String((j&&j.response)||pick(j)||'').trim();if(!a)throw new Error('O modelo respondeu vazio. Tente outro.');return a})},
+    function(){clearTimeout(t);throw new Error('Sem resposta do servidor (pode estar acordando, tente de novo em 1 minuto).')});
+}
+var $=function(i){return document.getElementById(i)},fab=$('ai-fab'),box=$('ai'),log=$('ai-log'),inp=$('ai-in'),btn=$('ai-send'),sel=$('ai-model'),hist=[];
+var grp={};MODELOS.forEach(function(m){var f=m.split(/[-.0-9]/)[0];if(!grp[f]){grp[f]=document.createElement('optgroup');grp[f].label=MODEL_LABELS[m]||FAM[f]||f;sel.appendChild(grp[f])}var o=document.createElement('option');o.value=m;o.textContent=MODEL_LABELS[m]||m;grp[f].appendChild(o)});
+try{var sv=localStorage.getItem('ai-ia-iracemai-v2');if(sv&&MODELOS.indexOf(sv)>-1)sel.value=sv}catch(e){}
+sel.onchange=function(){try{localStorage.setItem('ai-ia-iracemai-v2',sel.value)}catch(e){}};
+function add(t,c){var d=document.createElement('div');d.className='am '+c;d.textContent=t;log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
+add('Oi! Sou a IracemaAI, a assistente principal do Iracemaflix. Posso ajudar a instalar no Stremio, celular ou TV.','b');
+fab.onclick=function(){var on=box.classList.toggle('on');fab.setAttribute('aria-expanded',on);if(on)inp.focus()};
+addEventListener('keydown',function(e){if(e.key==='Escape'&&box.classList.contains('on')){box.classList.remove('on');fab.focus()}});
+$('ai-form').onsubmit=function(e){
+  e.preventDefault();var q=inp.value.trim();if(!q||btn.disabled)return;
+  inp.value='';add(q,'u');hist.push({role:'user',content:q});hist=hist.slice(-10);
+  btn.disabled=true;var w=add('…','b');
+  ask(sel.value,hist).then(function(a){w.textContent=a;hist.push({role:'assistant',content:a})})
+  .catch(function(er){w.className='am e';w.textContent=er.message||'Falha de conexão.';hist.pop()})
+  .then(function(){btn.disabled=false;log.scrollTop=log.scrollHeight});
+};
+  var musicToggle=$('music-toggle'),musicPanel=$('music-panel'),musicForm=$('music-form'),musicIn=$('music-in'),musicStatus=$('music-status'),musicResults=$('music-results'),musicPlayer=$('music-player'),musicAudio=$('music-audio'),musicPlay=$('music-play'),musicSeek=$('music-seek'),musicCurrent=$('music-current'),musicTotal=$('music-total'),musicCover=$('music-cover'),musicTitle=$('music-title'),musicArtist=$('music-artist'),musicDownload=$('music-download'),musicSource=$('music-source'),musicName='';
+  function esc(v){return String(v||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  musicToggle.onclick=function(){musicPanel.hidden=!musicPanel.hidden;if(!musicPanel.hidden)musicIn.focus()};
+  function clock(v){v=Math.max(0,Number(v)||0);return Math.floor(v/60)+':'+String(Math.floor(v%60)).padStart(2,'0')}
+  musicPlay.onclick=function(){if(!musicAudio.src)return; if(musicAudio.paused)musicAudio.play().catch(function(){musicStatus.textContent='Toque novamente em Reproduzir para iniciar o áudio.'});else musicAudio.pause()};
+  musicAudio.onplay=function(){musicPlay.textContent='❚❚ Pausar'};musicAudio.onpause=function(){musicPlay.textContent='▶ Reproduzir'};musicAudio.onloadedmetadata=function(){musicSeek.max=musicAudio.duration||100;musicTotal.textContent=clock(musicAudio.duration)};musicAudio.ontimeupdate=function(){musicSeek.value=musicAudio.currentTime||0;musicCurrent.textContent=clock(musicAudio.currentTime)};musicSeek.oninput=function(){musicAudio.currentTime=Number(musicSeek.value)||0};
+  musicForm.onsubmit=function(e){e.preventDefault();var q=musicIn.value.trim();if(!q)return;musicStatus.textContent='Pesquisando…';musicResults.innerHTML='';musicAudio.pause();musicAudio.removeAttribute('src');musicPlayer.hidden=true;fetch(BASE+'/api/iracemaAI/pesquisayt?query='+encodeURIComponent(q)).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Pesquisa indisponível');return j})}).then(function(j){var list=Array.isArray(j.formattedVideos)?j.formattedVideos:[];if(!list.length){musicStatus.textContent='Nenhum resultado encontrado.';return}musicStatus.textContent=list.length+' resultados';musicResults.innerHTML=list.slice(0,8).map(function(v){var id=(String(v.link||'').match(/[?&]v=([^&]+)/)||[])[1]||'';return '<article class="music-card"><img src="'+esc(v.thumbnail)+'" alt=""><div><b>'+esc(v.title)+'</b><small>'+esc(v.channel||v.creator||'YouTube')+' · '+esc(v.duration||'')+'</small></div><button type="button" data-id="'+esc(id)+'" data-title="'+esc(v.title)+'" data-artist="'+esc(v.channel||v.creator||'YouTube')+'" data-thumb="'+esc(v.thumbnail)+'" data-url="'+esc(v.link)+'" aria-label="Reproduzir">▶</button></article>'}).join('');Array.prototype.forEach.call(musicResults.querySelectorAll('button'),function(b){b.onclick=function(){musicName=b.dataset.title;if(!musicName)return;musicStatus.textContent='Carregando áudio…';musicTitle.textContent=b.dataset.title;musicArtist.textContent=b.dataset.artist||'YouTube';musicCover.src=b.dataset.thumb||'';musicAudio.src=BASE+'/api/iracemaAI/musica?name='+encodeURIComponent(musicName);musicDownload.href=BASE+'/api/iracemaAI/musica?name='+encodeURIComponent(musicName)+'&download=1';musicSource.href=b.dataset.url||'#';musicPlayer.hidden=false;musicPlayer.scrollIntoView({block:'nearest'});musicSeek.value=0;musicCurrent.textContent='0:00';musicTotal.textContent=b.querySelector('small')?.textContent.split(' · ').pop()||'0:00';musicAudio.load();musicAudio.play().catch(function(){musicStatus.textContent='Áudio carregado. Toque em Reproduzir.'})}})}).catch(function(err){musicStatus.textContent=err.message||'Falha na pesquisa.'})};
+})();
 </script>
 </body>
 </html>
