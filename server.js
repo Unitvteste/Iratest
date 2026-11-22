@@ -2535,6 +2535,9 @@ Object.assign(PROVIDER_NAMES, {
   redeflix: 'RedeFlix',
   pobreflix: 'PobreFlix',
   cineagora: 'CineAgora',
+  cineveo: 'CineVeo',
+  overflix: 'OverFlix',
+  redecanais: 'RedeCanais',
   pomfy: 'Pomfy',
   pobreflixtv: 'PobreFlix TV',
   pobreflixtvfree: 'PobreFlix TV Free',
@@ -2728,7 +2731,7 @@ function normalizeProviderStream(stream, providerId) {
 const PROVIDER_SEARCH_PRIORITY_IDS = Object.freeze(
   Array.isArray(CONFIG.PROVIDER_SEARCH_PRIORITY) && CONFIG.PROVIDER_SEARCH_PRIORITY.length
     ? [...new Set(CONFIG.PROVIDER_SEARCH_PRIORITY.map((id) => String(id).trim().toLowerCase()).filter(Boolean))]
-    : ['megaembed', 'embedmovies', 'redeflix', 'playerflix', 'myembed', 'fshd', 'pomfy', 'rivo', 'vaqueirofilmes', 'pobreflix', 'framextv']
+    : ['megaembed', 'embedmovies', 'redeflix', 'playerflix', 'myembed', 'fshd', 'pomfy', 'rivo', 'vaqueirofilmes', 'pobreflixtv', 'framextv', 'brflix', 'cineveo', 'overflix', 'redecanais']
 );
 const XTREAM_SEARCH_PRIORITY_IDS = Object.freeze(
   Array.isArray(CONFIG.XTREAM_SEARCH_PRIORITY) && CONFIG.XTREAM_SEARCH_PRIORITY.length
@@ -2773,9 +2776,9 @@ function selectPriorityXtreamSources(sources = XTREAM_SOURCES) {
 
 const ANIME_PROVIDER_SEARCH_PRIORITY_IDS = Object.freeze([
   'animefire', 'animeq', 'animescloud', 'animesdigital', 'animesdrive',
-  'animesfhd', 'animeshd', 'animesonlineblue', 'animesonlinecloud',
-  'animezey', 'berryanimes', 'otakulogia', 'oxeanimes', 'superanimes', 'topanimes',
-  'anibunker', 'anistream', 'anizone', 'anizero', 'animy', 'anitube', 'uniquestream'
+  'animesfhd', 'animeshd', 'animesonlineblue', 'animesonlinecc', 'animesonlinecloud',
+  'animezey', 'otakulogia', 'oxeanimes', 'superanimes', 'topanimes',
+  'anibunker', 'anizone', 'anizero', 'animy', 'anitube', 'uniquestream'
 ]);
 
 function isAnimeMetadata(result = {}) {
@@ -3416,31 +3419,28 @@ async function searchHostedProviders({ tmdbId, mediaType, season, episode, provi
   const ids = [...new Set((Array.isArray(providerIds) ? providerIds : []).map((id) => String(id).toLowerCase()).filter(Boolean))];
   if (!ids.length || signal?.aborted) return [];
   // A API hospedada retorna os resultados agrupados em `results[].streams`.
-  // Todos os lotes são disparados em paralelo para reunir todos os provedores
-  // dentro do prazo global, sem parar no primeiro player encontrado.
-  const batches = [];
-  for (let index = 0; index < ids.length; index += 2) batches.push(ids.slice(index, index + 2));
-  const batchStreams = await Promise.all(batches.map(async (batch) => {
-    const request = hostedApiSignal(signal, timeoutMs);
-    try {
-      const response = await undiciFetch(`${PROVIDERS_API_BASE}/api/v1/search`, {
-        method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tmdbId, mediaType, season, episode, providerIds: batch }),
-        signal: request.signal
-      });
-      if (!response.ok) throw new Error(`Providers API HTTP ${response.status}`);
-      const payload = await response.json();
-      return [
-        ...(Array.isArray(payload?.results) ? payload.results.flatMap((result) => Array.isArray(result?.streams) ? result.streams : []) : []),
-        ...(Array.isArray(payload?.streams) ? payload.streams : [])
-      ];
-    } catch (error) {
-      sourceLog('hosted-provider-batch-error', { providers: batch, message: String(error?.message || error).slice(0, 160) });
-      return [];
-    } finally { request.close(); }
-  }));
-  const streams = batchStreams.flatMap((items) => items).map((stream) => {
+  // Enviar todos os IDs em uma única requisição evita dezenas de POSTs
+  // simultâneos e os HTTP 429 que faziam retornar somente parte dos players.
+  const request = hostedApiSignal(signal, timeoutMs);
+  let payload;
+  try {
+    const response = await undiciFetch(`${PROVIDERS_API_BASE}/api/v1/search`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tmdbId, mediaType, season, episode, providerIds: ids }),
+      signal: request.signal
+    });
+    if (!response.ok) throw new Error(`Providers API HTTP ${response.status}`);
+    payload = await response.json();
+  } catch (error) {
+    sourceLog('hosted-provider-search-error', { providers: ids, message: String(error?.message || error).slice(0, 160) });
+    return [];
+  } finally { request.close(); }
+  const rawStreams = [
+    ...(Array.isArray(payload?.results) ? payload.results.flatMap((result) => Array.isArray(result?.streams) ? result.streams : []) : []),
+    ...(Array.isArray(payload?.streams) ? payload.streams : [])
+  ];
+  const streams = rawStreams.map((stream) => {
     const rawUrl = String(stream?.url || stream?.externalUrl || '').trim();
     if (!/^https?:\/\//i.test(rawUrl)) return null;
     const provider = String(stream?.provider || stream?.sourceName || 'Provider');
@@ -3481,20 +3481,21 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
       episode: episode || null,
       providerIds: priority,
       signal,
-      timeoutMs: Math.min(25000, DIRECT_PROVIDER_API_TIMEOUT_MS, budgetMs)
+      timeoutMs: Math.min(35000, DIRECT_PROVIDER_API_TIMEOUT_MS, budgetMs)
     }).catch((error) => {
       sourceLog('hosted-provider-api-error', { id: imdb || tmdbId, message: String(error?.message || error).slice(0, 180) });
       return [];
     });
-    if (remoteStreams.length) {
-      if (!signal?.aborted && !testOptions.bypassCache) DIRECT_PROVIDER_STREAM_CACHE.set(cacheKey, {
-        streams: remoteStreams, expiresAt: Date.now() + 30_000
-      });
-      sourceLog('hosted-provider-api-result', {
-        id: imdb || tmdbId, type, anime: isAnimeMetadata(tmdbResult), streams: remoteStreams.length
-      });
-      return testOptions.returnOutcome ? { streams: remoteStreams, outcomes: [], elapsedMs: 0 } : remoteStreams;
-    }
+    if (!signal?.aborted && !testOptions.bypassCache && remoteStreams.length) DIRECT_PROVIDER_STREAM_CACHE.set(cacheKey, {
+      streams: remoteStreams, expiresAt: Date.now() + 30_000
+    });
+    sourceLog('hosted-provider-api-result', {
+      id: imdb || tmdbId, type, anime: isAnimeMetadata(tmdbResult), streams: remoteStreams.length,
+      localFallback: false
+    });
+    // Com a API Render configurada, não consultar adapters/fontes locais
+    // quando a API retornar vazio, erro ou limite de requisições.
+    return testOptions.returnOutcome ? { streams: remoteStreams, outcomes: [], elapsedMs: 0 } : remoteStreams;
   }
 
   const tasks = Array.isArray(testOptions.sourceTasks)
@@ -3585,7 +3586,7 @@ const CACHE_TTL_MS = Number(
 const M3U_TIMEOUT_MS = Math.min(positiveEnvNumber('M3U_TIMEOUT_MS', 25000, 25000), 25000);
 const M3U_SOURCE_TIMEOUT_MS = Math.min(positiveEnvNumber('M3U_SOURCE_TIMEOUT_MS', 25000, 25000), 25000);
 const M3U_SOURCE_BODY_TIMEOUT_MS = Math.min(positiveEnvNumber('M3U_SOURCE_BODY_TIMEOUT_MS', 120000, 120000), 120000);
-const DIRECT_PROVIDER_API_TIMEOUT_MS = Math.min(positiveEnvNumber('DIRECT_PROVIDER_API_TIMEOUT_MS', 25000, 25000), 25000);
+const DIRECT_PROVIDER_API_TIMEOUT_MS = Math.min(positiveEnvNumber('DIRECT_PROVIDER_API_TIMEOUT_MS', 35000, 35000), 35000);
 
 // Limite por resposta e por varredura do catálogo. Mantém a primeira resposta rápida.
 const CATALOG_LIMIT_VALUE = Number(CONFIG.CATALOG_LIMIT ?? 0);
@@ -4938,7 +4939,9 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
         sourceLog('hosted-xtream-api-error', { id, message: String(error?.message || error).slice(0, 180) });
         return [];
       });
-    if (remote.length) return testOptions.returnOutcome ? { streams: remote, outcomes: [], elapsedMs: 0 } : remote;
+    sourceLog('hosted-xtream-api-result', { id, streams: remote.length, localFallback: false });
+    // A API Xtream do Render é a única fonte de filmes e séries neste fluxo.
+    return testOptions.returnOutcome ? { streams: remote, outcomes: [], elapsedMs: 0 } : remote;
   }
   const sourcesToSearch = xtreamSearchOrder(testOptions.sources || XTREAM_SOURCES);
   const requestSource = testOptions.requestSource || xtreamSourceRequest;
@@ -7494,7 +7497,7 @@ builder.defineStreamHandler(
                   sourcesAvailable: providerPriorityTasks.length
                 })
               : providerPriority,
-            () => (XTREAM_API_BASE || xtreamPrioritySources.length)
+            () => (!animeSearch && (XTREAM_API_BASE || xtreamPrioritySources.length))
               ? findXtreamEntriesForImdb(type, id, result, priorityBudgetMs, {
                   sources: xtreamPrioritySources,
                   useHostedApi: true,
@@ -7547,14 +7550,15 @@ builder.defineStreamHandler(
           elapsedMs: providerPriority.elapsedMs || Date.now() - priorityStartedAt,
           serial: false, parallel: true, sources: providerOutcomes
         });
-        sourceLog('xtream-search-complete', {
+        sourceLog(animeSearch ? 'xtream-search-skipped' : 'xtream-search-complete', {
           ...(xtreamPriority.summary || {}), id: requestSourceId, type,
           sourcesAvailable: xtreamPrioritySources.length,
-          sourcesStarted: xtreamOutcomes.filter((item) => !['not_started', 'skipped-priority'].includes(item.status)).length,
-          sourcesWithMedia: (xtreamPriority.outcomes || []).filter((item) => item.status === 'ok').length,
-          streams: xtreamEntries.length,
-          elapsedMs: xtreamPriority.elapsedMs || Date.now() - priorityStartedAt,
-          serial: false, parallel: true, sources: xtreamOutcomes
+          sourcesStarted: animeSearch ? 0 : xtreamOutcomes.filter((item) => !['not_started', 'skipped-priority'].includes(item.status)).length,
+          sourcesWithMedia: animeSearch ? 0 : (xtreamPriority.outcomes || []).filter((item) => item.status === 'ok').length,
+          streams: animeSearch ? 0 : xtreamEntries.length,
+          elapsedMs: animeSearch ? 0 : (xtreamPriority.elapsedMs || Date.now() - priorityStartedAt),
+          reason: animeSearch ? 'anime usa Providers gerais prioritários e adapters especializados' : undefined,
+          serial: false, parallel: true, sources: animeSearch ? [] : xtreamOutcomes
         });
         sourceLog('imdb-priority-phase-complete', {
           id: requestSourceId,
@@ -7600,9 +7604,10 @@ builder.defineStreamHandler(
         }
 
         const directStreamsFound = providerApiStreams.length + xtreamEntries.length > 0;
-        const m3uBudgetMs = shouldUseImdbM3uFallback([...providerApiStreams, ...streamsForEntries(xtreamEntries)])
-          ? Math.min(IMDB_M3U_TIMEOUT_MS, providerBudgetRemainingMs())
-          : 0;
+        // M3U permanece documentada na configuração, mas não é baixada nem
+        // consultada para filmes/séries: o fluxo usa apenas Providers/Xtream
+        // hospedados nas APIs Render.
+        const m3uBudgetMs = 0;
         const m3uResult = result && m3uBudgetMs > 0
           ? await findM3uFromCache(m3uBudgetMs)
           : emptyM3uMatch;
