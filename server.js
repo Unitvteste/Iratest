@@ -1165,7 +1165,10 @@ async function catalog(type, id, extra = {}) {
     metas: items
       .filter((meta) => !search || normalizeText(`${meta.name} ${meta.description} ${(meta.genres || []).join(' ')}`).includes(search))
       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
-      .slice(skip, skip + 100)
+      // A API TV externa pode fornecer mais de 100 canais após a união de
+      // `source=all`, `source=live` e Embed Canais. Não corte o catálogo
+      // principal antes de o Stremio receber todos os canais disponíveis.
+      .slice(skip, skip + (id === CHANNEL_CATALOG_ID ? 500 : 100))
   };
 }
 
@@ -1364,19 +1367,24 @@ function extractReiGeneratedPageLinks(text, baseUrl) {
       } catch { /* ignora pares que não sejam URL */ }
     }
   };
-  const arrayMatch = source.match(/(?:var|let|const)\s+pvqVN72\s*=\s*\[((?:[^\]]|\](?!\s*,\s*zRbolaau))*)\]\s*,\s*zRbolaau\s*=\s*\[([^\]]+)\]/i);
-  const keyMatch = source.match(/\bYh7l\s*=\s*['"]([^'"]+)['"]/i);
-  if (!arrayMatch || !keyMatch) return links;
-  try {
-    const values = [...arrayMatch[1].matchAll(/['"]((?:\\.|[^'"\\])*)['"]/g)].map((match) => match[1]);
-    const order = arrayMatch[2].split(',').map((value) => Number(value.trim())).filter(Number.isInteger);
-    const payload = Buffer.from(order.map((index) => values[index] || '').join(''), 'base64');
-    const key = Buffer.from(keyMatch[1].split('').reverse().join(''), 'base64');
-    if (!payload.length || !key.length) return links;
-    const decoded = Buffer.alloc(payload.length);
-    for (let index = 0; index < payload.length; index += 1) decoded[index] = payload[index] ^ key[index % key.length];
-    decodeLiteralPairs(decoded.toString('utf8'));
-  } catch { /* ignora a camada ofuscada inválida */ }
+  // Os nomes das variáveis são trocados pelo Rei em cada resposta. O formato
+  // permanece: fragmentos + índices + chave base64 invertida, seguida de XOR.
+  const outerMatch = source.match(/(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*\[((?:\\.|'[^']*'|"[^"]*"|[^\]])*)\]\s*,\s*([A-Za-z_$][\w$]*)\s*=\s*\[([^\]]+)\]\s*,\s*([A-Za-z_$][\w$]*)\s*=\s*['"]([^'"]+)['"]/s);
+  if (outerMatch) {
+    try {
+      const values = [...outerMatch[2].matchAll(/['"]((?:\\.|[^'"\\])*)['"]/g)].map((match) => match[1]);
+      const order = outerMatch[4].split(',').map((value) => Number(value.trim())).filter(Number.isInteger);
+      const payload = Buffer.from(order.map((index) => values[index] || '').join(''), 'base64');
+      const key = Buffer.from(outerMatch[6].split('').reverse().join(''), 'base64');
+      if (payload.length && key.length) {
+        const decoded = Buffer.alloc(payload.length);
+        for (let index = 0; index < payload.length; index += 1) decoded[index] = payload[index] ^ key[index % key.length];
+        const inner = decoded.toString('utf8');
+        decodeLiteralPairs(inner);
+        for (const match of inner.matchAll(/(?:iframe\.src|\.src|src)\s*=\s*(["'])(.*?)\1/gi)) addUrl(match[2]);
+      }
+    } catch { /* ignora a camada ofuscada inválida */ }
+  }
   return links;
 }
 
@@ -1973,7 +1981,7 @@ const TMDB_LANGUAGE = CONFIG.TMDB_LANGUAGE || 'pt-BR';
 const TMDB_TIMEOUT_MS = Math.min(positiveEnvNumber('TMDB_TIMEOUT_MS', 15000, 15000), 15000);
 const IMDB_METADATA_TIMEOUT_MS = positiveEnvNumber('IMDB_METADATA_TIMEOUT_MS', 4500, 6000);
 // Cada fonte tem teto de 25 s; a faixa prioritária inteira também tem janela total de 25 s.
-const IMDB_PRIORITY_PHASE_TIMEOUT_MS = 25000;
+const IMDB_PRIORITY_PHASE_TIMEOUT_MS = 35000;
 const IMDB_STREAM_TIMEOUT_MS = positiveEnvNumber(
   'IMDB_STREAM_TIMEOUT_MS',
   Number(CONFIG.IMDB_STREAM_TIMEOUT_MS) || 3_000_000,
@@ -3406,10 +3414,13 @@ function hostedApiSignal(parentSignal, timeoutMs) {
 
 async function searchHostedProviders({ tmdbId, mediaType, season, episode, providerIds, signal, timeoutMs }) {
   const ids = [...new Set((Array.isArray(providerIds) ? providerIds : []).map((id) => String(id).toLowerCase()).filter(Boolean))];
-  const streams = [];
-  for (let index = 0; index < ids.length; index += 8) {
-    if (signal?.aborted) break;
-    const batch = ids.slice(index, index + 8);
+  if (!ids.length || signal?.aborted) return [];
+  // A API hospedada retorna os resultados agrupados em `results[].streams`.
+  // Todos os lotes são disparados em paralelo para reunir todos os provedores
+  // dentro do prazo global, sem parar no primeiro player encontrado.
+  const batches = [];
+  for (let index = 0; index < ids.length; index += 2) batches.push(ids.slice(index, index + 2));
+  const batchStreams = await Promise.all(batches.map(async (batch) => {
     const request = hostedApiSignal(signal, timeoutMs);
     try {
       const response = await undiciFetch(`${PROVIDERS_API_BASE}/api/v1/search`, {
@@ -3420,21 +3431,28 @@ async function searchHostedProviders({ tmdbId, mediaType, season, episode, provi
       });
       if (!response.ok) throw new Error(`Providers API HTTP ${response.status}`);
       const payload = await response.json();
-      for (const stream of Array.isArray(payload?.streams) ? payload.streams : []) {
-        const rawUrl = String(stream?.url || stream?.externalUrl || '').trim();
-        if (!/^https?:\/\//i.test(rawUrl)) continue;
-        const provider = String(stream?.provider || stream?.sourceName || 'Provider');
-        const headers = stream?.headers && typeof stream.headers === 'object' ? stream.headers : {};
-        streams.push(normalizeProviderStream({
-          ...stream,
-          url: rawUrl,
-          provider,
-          sourceName: provider,
-          ...(Object.keys(headers).length ? { behaviorHints: { proxyHeaders: { request: headers } } } : {})
-        }, provider.toLowerCase().replace(/\s+/g, '-')));
-      }
+      return [
+        ...(Array.isArray(payload?.results) ? payload.results.flatMap((result) => Array.isArray(result?.streams) ? result.streams : []) : []),
+        ...(Array.isArray(payload?.streams) ? payload.streams : [])
+      ];
+    } catch (error) {
+      sourceLog('hosted-provider-batch-error', { providers: batch, message: String(error?.message || error).slice(0, 160) });
+      return [];
     } finally { request.close(); }
-  }
+  }));
+  const streams = batchStreams.flatMap((items) => items).map((stream) => {
+    const rawUrl = String(stream?.url || stream?.externalUrl || '').trim();
+    if (!/^https?:\/\//i.test(rawUrl)) return null;
+    const provider = String(stream?.provider || stream?.sourceName || 'Provider');
+    const headers = stream?.headers && typeof stream.headers === 'object' ? stream.headers : {};
+    return normalizeProviderStream({
+      ...stream,
+      url: rawUrl,
+      provider,
+      sourceName: provider,
+      ...(Object.keys(headers).length ? { behaviorHints: { proxyHeaders: { request: headers } } } : {})
+    }, provider.toLowerCase().replace(/\s+/g, '-'));
+  }).filter(Boolean);
   return [...new Map(streams.map((stream) => [stream.url, stream])).values()];
 }
 
@@ -4915,7 +4933,7 @@ async function searchHostedXtream(type, id, result, idMatch, signal, timeoutMs) 
 async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM_TIMEOUT_MS, testOptions = {}) {
   if (!result || !['movie', 'series'].includes(type)) return [];
   if (XTREAM_API_BASE && testOptions.useHostedApi === true && !isAnimeMetadata(result)) {
-    const remote = await searchHostedXtream(type, id, result, String(id).match(/^tt\d+(?::(\d+):(\d+))?$/i), testOptions.signal || null, Math.min(25000, budgetMs))
+    const remote = await searchHostedXtream(type, id, result, String(id).match(/^tt\d+(?::(\d+):(\d+))?$/i), testOptions.signal || null, Math.min(35000, budgetMs))
       .catch((error) => {
         sourceLog('hosted-xtream-api-error', { id, message: String(error?.message || error).slice(0, 180) });
         return [];
@@ -7477,7 +7495,7 @@ builder.defineStreamHandler(
                   sourcesAvailable: providerPriorityTasks.length
                 })
               : providerPriority,
-            () => xtreamPrioritySources.length
+            () => (XTREAM_API_BASE || xtreamPrioritySources.length)
               ? findXtreamEntriesForImdb(type, id, result, priorityBudgetMs, {
                   sources: xtreamPrioritySources,
                   useHostedApi: true,
