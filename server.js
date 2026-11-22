@@ -3453,7 +3453,10 @@ async function searchHostedProviders({ tmdbId, mediaType, season, episode, provi
       ...(Object.keys(headers).length ? { behaviorHints: { proxyHeaders: { request: headers } } } : {})
     }, provider.toLowerCase().replace(/\s+/g, '-'));
   }).filter(Boolean);
-  return [...new Map(streams.map((stream) => [stream.url, stream])).values()];
+  // A resposta da API pode repetir o mesmo item em `results[].streams` e
+  // `streams[]`. Essas entradas continuam visíveis porque o operador pediu
+  // todos os streams brutos, inclusive variantes/duplicatas do payload.
+  return streams;
 }
 
 async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, signal = null, budgetMs = IMDB_STREAM_TIMEOUT_MS, testOptions = {}) {
@@ -6316,13 +6319,7 @@ function compareStreams(left, right) {
 }
 
 function combineStreams(...groups) {
-  const unique = new Map();
-  for (const stream of groups.flat()) {
-    if (!stream?.url) continue;
-    const key = `${imdbStreamSource(stream)}\u0000${stream.url}`;
-    if (!unique.has(key)) unique.set(key, stream);
-  }
-  return [...unique.values()].sort(compareStreams);
+  return groups.flat().filter((stream) => stream?.url).sort(compareStreams);
 }
 
 function shouldUseImdbM3uFallback(nonM3uStreams = []) {
