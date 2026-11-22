@@ -6891,6 +6891,17 @@ builder.defineCatalogHandler(
         return await tmdbRankingCatalog(rankingType, id, extra);
       }
       if (LiveTv.handlesCatalog(id)) return await LiveTv.catalog(type, id, extra);
+      // A tela inicial não deve pedir o catálogo Xtream agregado inteiro. A API
+      // hospedada precisa consultar dezenas de fontes e pode retornar dezenas de
+      // milhares de itens. Use uma seleção curta do TMDB para navegação; Xtream
+      // e Providers são consultados depois, na resolução dos streams do título.
+      if ((id === 'm3u-movies' || id === 'm3u-series') && !String(extra.search || '').trim() && TMDB_API_KEY) {
+        const rankingType = id === 'm3u-series' ? 'series' : 'movie';
+        const rankingId = `iracema-ranking-${rankingType}-popular`;
+        const ranking = await tmdbRankingCatalog(rankingType, rankingId, extra);
+        sourceLog('catalog-fast-tmdb-ready', { type: rankingType, count: ranking.metas.length, streams: 'providers+xtream-priority-on-open' });
+        return ranking;
+      }
       const xtreamType = id === 'm3u-movies' ? 'movie' : id === 'm3u-series' ? 'series' : id === 'm3u-tv' ? 'tv' : type;
       if (['movie', 'series', 'tv'].includes(xtreamType)) {
         if (xtreamType !== 'tv' && (XTREAM_ENABLED || XTREAM_API_BASE)) {
