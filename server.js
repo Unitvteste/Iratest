@@ -4167,7 +4167,10 @@ async function xtreamCatalog(type, extra = {}, sourceOverride = null) {
     const url = new URL(`${XTREAM_API_BASE}/api/v1/catalog/${kind}`);
     url.searchParams.set('limit', String(Math.min(500, catalogLimitFor(extra))));
     if (extra.search) url.searchParams.set('search', String(extra.search));
-    const payload = await fetchJsonWithTimeout(url, XTREAM_TIMEOUT_MS, 'Xtream API catálogo');
+    // A API hospedada agrega várias fontes Xtream e pode levar mais que o timeout
+    // individual das fontes. Este caminho continua exclusivo para filmes/séries;
+    // não há fallback para download de playlists M3U.
+    const payload = await fetchJsonWithTimeout(url, Math.max(60000, XTREAM_TIMEOUT_MS), 'Xtream API catálogo');
     const remoteItems = Array.isArray(payload?.items) ? payload.items : [];
     const remoteSource = { id: 'hosted', sourceName: 'Xtream hospedado', name: 'Xtream hospedado', base: XTREAM_API_BASE };
     const items = remoteItems.map((item) => ({
@@ -6890,40 +6893,13 @@ builder.defineCatalogHandler(
       if (LiveTv.handlesCatalog(id)) return await LiveTv.catalog(type, id, extra);
       const xtreamType = id === 'm3u-movies' ? 'movie' : id === 'm3u-series' ? 'series' : id === 'm3u-tv' ? 'tv' : type;
       if (['movie', 'series', 'tv'].includes(xtreamType)) {
-        if (xtreamType !== 'tv' && XTREAM_ENABLED) {
+        if (xtreamType !== 'tv' && (XTREAM_ENABLED || XTREAM_API_BASE)) {
           try {
             const metas = await xtreamCatalog(xtreamType, extra);
-            sourceLog('catalog-primary-xtream-ready', { type: xtreamType, source: XTREAM_SOURCE_NAME, count: metas.length });
+            sourceLog('catalog-primary-xtream-ready', { type: xtreamType, source: XTREAM_ENABLED ? XTREAM_SOURCE_NAME : 'Xtream hospedado', count: metas.length });
             return { metas };
           } catch (xtreamPrimaryError) {
             sourceLog('catalog-primary-xtream-error', { type: xtreamType, source: XTREAM_SOURCE_NAME, error: String(xtreamPrimaryError.message || '').slice(0, 120) });
-          }
-        }
-        if (xtreamType !== 'tv' && !XTREAM_ENABLED) {
-          try {
-            const metas = await singleSourceM3uCatalog('xtream-cdn4k-us-89625', xtreamType, extra);
-            sourceLog('catalog-primary-m3u-ready', { type: xtreamType, source: 'CDN4K.us 89625', count: metas.length });
-            return { metas };
-          } catch (m3uPrimaryError) {
-            sourceLog('catalog-primary-m3u-error', { type: xtreamType, source: 'CDN4K.us 89625', error: String(m3uPrimaryError.message || '').slice(0, 120) });
-          }
-        }
-        if (xtreamType !== 'tv' && !XTREAM_ENABLED) {
-          try {
-            await ensurePlaylist();
-            const genre = String(extra.genre || '').trim().toLowerCase();
-            if (xtreamType === 'series') {
-              const localSeries = await collectSeriesCatalog('', genre);
-              const metas = localSeries.slice(0, catalogLimitFor(extra)).map(seriesMeta);
-              sourceLog('catalog-local-fallback-ready', { type: xtreamType, source: 'playlist-local', count: metas.length });
-              return { metas };
-            }
-            const localEntries = await collectEntries(xtreamType, '', genre);
-            const metas = localEntries.slice(0, catalogLimitFor(extra)).map(xtreamType === 'movie' ? movieMeta : tvMeta);
-            sourceLog('catalog-local-fallback-ready', { type: xtreamType, source: 'playlist-local', count: metas.length });
-            return { metas };
-          } catch (localFallbackError) {
-            sourceLog('catalog-local-fallback-error', { type: xtreamType, error: String(localFallbackError.message || '').slice(0, 120) });
           }
         }
       }
@@ -6978,6 +6954,13 @@ builder.defineCatalogHandler(
       }
       if (xtreamType === 'tv' && XTREAM_ENABLED) {
         sourceLog('catalog-tv-empty-after-source-fallbacks', { reason: 'all single sources unavailable' });
+      }
+      if (id === 'm3u-movies' || id === 'm3u-series') {
+        sourceLog('catalog-xtream-empty-no-m3u-fallback', {
+          type: xtreamType,
+          reason: 'filmes e séries usam somente APIs Xtream'
+        });
+        return { metas: [] };
       }
       await ensurePlaylist();
 
