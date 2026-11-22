@@ -6276,9 +6276,9 @@ function iracemaflixStreamName(quality, server = '') {
   else if (/576p|480p|\bsd\b/.test(value)) { label = 'SD'; emoji = '📼'; }
   const extras = [value.includes('hdr') ? 'HDR' : '', value.includes(' dv') || /\bdv\b/.test(value) ? 'DV' : ''].filter(Boolean);
   const qualityLabel = label ? [label, ...extras].join(' ') : 'Auto';
-  // A fonte continua identificada no campo `title` (linha Servidor),
-  // mas não é repetida na primeira linha exibida pelo Stremio.
-  return `${emoji} Iracemaflix • ${qualityLabel}`;
+  // Repete a fonte também no nome curto, pois alguns clientes Stremio
+  // ocultam o campo title e exibem somente a primeira linha do player.
+  return `${emoji} Iracemaflix • ${qualityLabel}${server ? ` • ${server}` : ''}`;
 }
 
 function streamQualityRank(stream) {
@@ -7763,10 +7763,15 @@ function addonPublicBaseUrl() {
 function isAllowedReiMediaUrl(value) {
   try {
     const host = new URL(value).hostname.toLowerCase();
-    return /^((atlas\.mediastream\.best)|(asgard\.fastimg\.live)|(p\d+\.tiktokcdn\.com))$/i.test(host);
+    return /^((atlas\.mediastream\.best)|(asgard\.fastimg\.live)|(livestream\.st)|(p\d+\.tiktokcdn\.com))$/i.test(host);
   } catch {
     return false;
   }
+}
+
+function isReiDirectProxyHost(value) {
+  try { return /^livestream\.st$/i.test(new URL(value).hostname); }
+  catch { return false; }
 }
 
 function decodeBase64Url(value) {
@@ -7927,6 +7932,9 @@ function reiProxyUrl(option, publicBaseUrl = '') {
     sourceLog('rei-hls-proxy-unavailable', { url: option.url, reason: 'addon-public-base-not-detected' });
     return null;
   }
+  if (isReiDirectProxyHost(option.url)) {
+    return `${base}/rei-direct.m3u8?source=${encodeURIComponent(encodeBase64Url(option.url))}&referer=${encodeURIComponent(encodeBase64Url(option.referer || ''))}`;
+  }
   return `${base}/rei-hls.m3u8?source=${encodeURIComponent(encodeBase64Url(option.url))}&referer=${encodeURIComponent(encodeBase64Url(option.referer || ''))}`;
 }
 
@@ -8040,6 +8048,52 @@ app.get('/api/iracemaAI/:model', async (req, res) => {
   }
 });
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'iracema.html')));
+app.get('/rei-direct.m3u8', async (req, res) => {
+  let sourceUrl = '';
+  try {
+    sourceUrl = decodeBase64Url(req.query.source);
+    const referer = decodeBase64Url(req.query.referer);
+    if (!isReiDirectProxyHost(sourceUrl)) return res.status(400).type('text/plain').send('Fonte direta do Rei inválida');
+    const sourceOrigin = (() => { try { return new URL(referer).origin; } catch { return ''; } })();
+    const response = await fetch(sourceUrl, {
+      redirect: 'follow',
+      headers: {
+        'User-Agent': USER_AGENT,
+        Accept: 'application/vnd.apple.mpegurl, application/x-mpegURL, video/*, */*',
+        ...(referer ? { Referer: referer } : {}),
+        ...(sourceOrigin ? { Origin: sourceOrigin } : {})
+      },
+      signal: AbortSignal.timeout(12000)
+    });
+    if (!response.ok) throw new Error(`Fonte direta do Rei respondeu HTTP ${response.status}`);
+    const contentType = response.headers.get('content-type') || '';
+    const body = Buffer.from(await response.arrayBuffer());
+    const text = body.toString('utf8');
+    if (!text.includes('#EXTM3U')) {
+      res.set({ 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' });
+      return res.type(contentType || 'application/octet-stream').send(body);
+    }
+    const playlist = text.split(/\r?\n/).map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        return line.replace(/URI="([^"]+)"/i, (_match, uri) => {
+          try {
+            const absolute = new URL(uri, sourceUrl).href;
+            return `URI="/rei-direct.m3u8?source=${encodeURIComponent(encodeBase64Url(absolute))}&referer=${encodeURIComponent(encodeBase64Url(referer))}"`;
+          } catch { return `URI="${uri}"`; }
+        });
+      }
+      try {
+        const absolute = new URL(trimmed, sourceUrl).href;
+        return `/rei-direct.m3u8?source=${encodeURIComponent(encodeBase64Url(absolute))}&referer=${encodeURIComponent(encodeBase64Url(referer))}`;
+      } catch { return line; }
+    }).join('\n');
+    res.set({ 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/vnd.apple.mpegurl; charset=utf-8' }).send(playlist);
+  } catch (error) {
+    sourceLog('rei-direct-proxy-error', { url: sourceUrl, message: error.message });
+    res.status(502).type('text/plain').send('Fonte direta do Rei indisponível');
+  }
+});
 app.get('/rei-hls.m3u8', async (req, res) => {
   const startedAt = Date.now();
   let sourceUrl = '';
