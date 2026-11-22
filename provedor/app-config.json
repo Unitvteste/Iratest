@@ -11,6 +11,7 @@
   "XTREAM_TIMEOUT_MS": 25000,
   "PROVIDERS_API_BASE": "https://apiprovedor.onrender.com",
   "XTREAM_API_BASE": "https://apixtream.onrender.com",
+  "XTREAM_LIVE_CATALOG_SOURCE_ID": "one-tv",
   "TV_API_BASE": "https://apitvaddon.onrender.com/api/v1",
   "PROVIDER_SEARCH_PRIORITY": [
     "megaembed",
@@ -22,8 +23,12 @@
     "pomfy",
     "rivo",
     "vaqueirofilmes",
-    "pobreflix",
-    "framextv"
+    "pobreflixtv",
+    "framextv",
+    "brflix",
+    "cineveo",
+    "overflix",
+    "redecanais"
   ],
   "XTREAM_SEARCH_PRIORITY": [
     "anbinvlink",
@@ -131,7 +136,7 @@
     }
   ],
   "PROVIDER_SOURCE_TIMEOUT_MS": 25000,
-  "DIRECT_PROVIDER_API_TIMEOUT_MS": 25000,
+  "DIRECT_PROVIDER_API_TIMEOUT_MS": 35000,
   "XTREAM_IMDB_TIMEOUT_MS": 25000,
   "CHANNEL_XTREAM_TIMEOUT_MS": 25000,
   "CHANNEL_M3U_TIMEOUT_MS": 25000,
