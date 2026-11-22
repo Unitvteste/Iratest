@@ -3959,6 +3959,43 @@ function xtreamGroup(item, fallback = 'Sem categoria') {
   return item.category_name || item.category_id || fallback;
 }
 
+function xtreamLiveGroup(item) {
+  const raw = String(item?.category_name || item?.categoryName || '').trim();
+  if (raw && !/^\d+$/.test(raw)) return raw;
+  const name = String(item?.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  if (/TELECINE/.test(name)) return 'TELECINE';
+  if (/HBO|MAX\b|CINEMAX/.test(name)) return 'HBO';
+  if (/ESPN|PREMIERE|SPORT|DAZN|COMBATE|NBA|NFL|FUTEBOL|BRASILEIRAO|PAY.?PER.?VIEW/.test(name)) return 'ESPORTES';
+  if (/DISCOVERY|ANIMAL PLANET|HISTORY|H2\b|TRAVEL|HGTV|NAT GEO|NATIONAL GEOGRAPHIC|DOCUMENT/.test(name)) return 'DOCUMENTARIOS · Canais';
+  if (/CARTOON|DISNEY|NICK|INFANTIL|KIDS|TOON|GLOOB|BOOMERANG/.test(name)) return 'INFANTIS';
+  if (/CNN|GLOBO NEWS|BAND NEWS|RECORD NEWS|JOVEM PAN|NEWS\b|NOTICIA/.test(name)) return 'NOTICIAS';
+  if (/GLOBO|BAND\b|RECORD\b|SBT\b|TV CULTURA|REDETV|TV BRASIL/.test(name)) return 'ABERTOS';
+  if (/SONY|AXN|WARNER|UNIVERSAL|PARAMOUNT|SYFY|SPACE\b|FX\b|AMC\b|TNT\b/.test(name)) return 'FILMES E SERIES · Canais';
+  if (/MUSICA|MTV|CLIP/.test(name)) return 'MUSICAS';
+  if (/24.?HORAS|24H/.test(name)) return '24 HORAS PARA RELAXAR';
+  return 'OUTROS';
+}
+
+function xtreamLiveGroups(item) {
+  const name = String(item?.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  const groups = [xtreamLiveGroup(item)];
+  const add = (value) => { if (!groups.includes(value)) groups.push(value); };
+  if (/4K|UHD|FHD|FULL.?HD/.test(name)) add('UHD 4K · Canais');
+  if (/H265|HEVC/.test(name)) add('H265/HEVC');
+  if (/ESPN/.test(name)) add('ESPN');
+  if (/SPORTV/.test(name)) add('SPORTV');
+  if (/PREMIERE/.test(name)) add('PREMIERE');
+  if (/DAZN/.test(name)) add('DAZN');
+  if (/DISCOVERY/.test(name)) add('DISCOVERY');
+  if (/DISNEY/.test(name)) add('DISNEY+ · Canais');
+  if (/MAX\b/.test(name)) add('MAX');
+  if (/GLOBO/.test(name)) add(/NEWS/.test(name) ? 'NOTICIAS' : 'GLOBO CAPITAIS');
+  if (/BAND\b/.test(name)) add('BAND');
+  if (/RECORD\b/.test(name)) add('RECORD TV');
+  if (/SBT\b/.test(name)) add('SBT');
+  return [...new Set(groups)];
+}
+
 function xtreamMovieMeta(item) {
   const id = `xtream-movie-${item.stream_id}`;
   xtreamMovieCache.set(String(item.stream_id), item);
@@ -4232,6 +4269,16 @@ async function xtreamCatalog(type, extra = {}, sourceOverride = null) {
       xtreamSource: remoteSource,
       hostedPlaybackUrl: item.playbackPath ? `${XTREAM_API_BASE}${String(item.playbackPath).startsWith('/') ? '' : '/'}${item.playbackPath}` : undefined
     })).filter((item) => item.stream_id || item.series_id);
+    if (type === 'tv') {
+      for (const item of items) {
+        item.categoryNames = xtreamLiveGroups(item);
+        item.categoryName = item.categoryNames[0] || 'OUTROS';
+      }
+      const requestedGenre = normalizeMatch(extra.genre || '');
+      if (requestedGenre) {
+        items.splice(0, items.length, ...items.filter((item) => item.categoryNames.some((group) => normalizeMatch(group).includes(requestedGenre) || requestedGenre.includes(normalizeMatch(group)))));
+      }
+    }
     for (const item of items) {
       if (type === 'movie') xtreamMovieCache.set(String(item.stream_id), item);
       else if (type === 'series') xtreamSeriesCache.set(String(item.series_id), item);
@@ -4239,7 +4286,7 @@ async function xtreamCatalog(type, extra = {}, sourceOverride = null) {
     }
     return items.slice(0, catalogLimitFor(extra)).map((item) => type === 'movie' ? xtreamMovieMeta(item) : type === 'series' ? xtreamSeriesMeta(item) : {
       id: `xtream-tv-source-hosted-${item.stream_id}`, type: 'tv', name: item.name || 'Canal',
-      poster: item.image || item.stream_icon, posterShape: 'landscape', genres: [item.categoryName || 'Outros']
+      poster: item.image || item.stream_icon, posterShape: 'landscape', genres: item.categoryNames || [item.categoryName || 'Outros']
     });
   }
   if (!source) throw new Error('Nenhuma fonte Xtream disponível');
