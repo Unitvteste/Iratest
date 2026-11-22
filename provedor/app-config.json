@@ -7,7 +7,7 @@
   "CACHE_TTL_MS": "900000",
   "CATALOG_LIMIT": "0",
   "MAX_M3U_ITEMS": "0",
-  "IMDB_STREAM_TIMEOUT_MS": 25000,
+  "IMDB_STREAM_TIMEOUT_MS": 40000,
   "XTREAM_TIMEOUT_MS": 25000,
   "PROVIDERS_API_BASE": "https://apiprovedor.onrender.com",
   "XTREAM_API_BASE": "https://apixtream.onrender.com",
