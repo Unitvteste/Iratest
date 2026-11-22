@@ -19,7 +19,6 @@ const getRouter = require('stremio-addon-sdk/src/getRouter');
 const { fetch: undiciFetch, Agent } = require('undici');
 const PROVIDERS_API_BASE = String(CONFIG.PROVIDERS_API_BASE || '').replace(/\/$/, '');
 const XTREAM_API_BASE = String(CONFIG.XTREAM_API_BASE || '').replace(/\/$/, '');
-const XTREAM_LIVE_CATALOG_SOURCE_ID = String(CONFIG.XTREAM_LIVE_CATALOG_SOURCE_ID || 'one-tv').trim();
 let premiumPuppeteer = null;
 try { premiumPuppeteer = require('puppeteer-core'); } catch { /* dependência opcional em ambientes sem Chromium */ }
 
@@ -1975,7 +1974,6 @@ const XTREAM_URL = XTREAM_SOURCES[0]?.base || '';
 const XTREAM_USERNAME = XTREAM_SOURCES[0]?.username || '';
 const XTREAM_PASSWORD = XTREAM_SOURCES[0]?.password || '';
 const XTREAM_ENABLED = XTREAM_SOURCES.length > 0;
-const HOSTED_XTREAM_SOURCE = Object.freeze({ id: 'hosted', sourceName: 'Xtream hospedado', name: 'Xtream hospedado', base: XTREAM_API_BASE });
 const XTREAM_SOURCE_NAME = CONFIG.XTREAM_SOURCE_NAME || XTREAM_SOURCES[0]?.sourceName || 'Xtream';
 const XTREAM_USER_AGENT = CONFIG.XTREAM_USER_AGENT || 'Mozilla/5.0';
 const TMDB_API_KEY = CONFIG.TMDB_API_KEY || '';
@@ -2537,9 +2535,6 @@ Object.assign(PROVIDER_NAMES, {
   redeflix: 'RedeFlix',
   pobreflix: 'PobreFlix',
   cineagora: 'CineAgora',
-  cineveo: 'CineVeo',
-  overflix: 'OverFlix',
-  redecanais: 'RedeCanais',
   pomfy: 'Pomfy',
   pobreflixtv: 'PobreFlix TV',
   pobreflixtvfree: 'PobreFlix TV Free',
@@ -2733,7 +2728,7 @@ function normalizeProviderStream(stream, providerId) {
 const PROVIDER_SEARCH_PRIORITY_IDS = Object.freeze(
   Array.isArray(CONFIG.PROVIDER_SEARCH_PRIORITY) && CONFIG.PROVIDER_SEARCH_PRIORITY.length
     ? [...new Set(CONFIG.PROVIDER_SEARCH_PRIORITY.map((id) => String(id).trim().toLowerCase()).filter(Boolean))]
-    : ['megaembed', 'embedmovies', 'redeflix', 'playerflix', 'myembed', 'fshd', 'pomfy', 'rivo', 'vaqueirofilmes', 'pobreflixtv', 'framextv', 'brflix', 'cineveo', 'overflix', 'redecanais']
+    : ['megaembed', 'embedmovies', 'redeflix', 'playerflix', 'myembed', 'fshd', 'pomfy', 'rivo', 'vaqueirofilmes', 'pobreflix', 'framextv']
 );
 const XTREAM_SEARCH_PRIORITY_IDS = Object.freeze(
   Array.isArray(CONFIG.XTREAM_SEARCH_PRIORITY) && CONFIG.XTREAM_SEARCH_PRIORITY.length
@@ -2778,9 +2773,9 @@ function selectPriorityXtreamSources(sources = XTREAM_SOURCES) {
 
 const ANIME_PROVIDER_SEARCH_PRIORITY_IDS = Object.freeze([
   'animefire', 'animeq', 'animescloud', 'animesdigital', 'animesdrive',
-  'animesfhd', 'animeshd', 'animesonlineblue', 'animesonlinecc', 'animesonlinecloud',
-  'animezey', 'otakulogia', 'oxeanimes', 'superanimes', 'topanimes',
-  'anibunker', 'anizone', 'anizero', 'animy', 'anitube', 'uniquestream'
+  'animesfhd', 'animeshd', 'animesonlineblue', 'animesonlinecloud',
+  'animezey', 'berryanimes', 'otakulogia', 'oxeanimes', 'superanimes', 'topanimes',
+  'anibunker', 'anistream', 'anizone', 'anizero', 'animy', 'anitube', 'uniquestream'
 ]);
 
 function isAnimeMetadata(result = {}) {
@@ -2815,6 +2810,7 @@ function isAnimeMetadata(result = {}) {
     .flatMap((value) => Array.isArray(value) ? value : (value == null ? [] : [value]))
     .map((value) => typeof value === 'object' ? value.name || value.label || value.keyword || '' : value);
   const hasAnimeKeyword = keywordValues.some((value) => /\banime\b/i.test(String(value || '')));
+  const titleValues = [result.title, result.name, result.original_title, result.original_name].filter(Boolean).join(' ');
   const hasJapaneseTitle = /[\u3040-\u30ff\u3400-\u9fff]/u.test(titleValues);
   return explicitAnime || hasAnimeKeyword || hasJapaneseTitle;
 }
@@ -3420,28 +3416,31 @@ async function searchHostedProviders({ tmdbId, mediaType, season, episode, provi
   const ids = [...new Set((Array.isArray(providerIds) ? providerIds : []).map((id) => String(id).toLowerCase()).filter(Boolean))];
   if (!ids.length || signal?.aborted) return [];
   // A API hospedada retorna os resultados agrupados em `results[].streams`.
-  // Enviar todos os IDs em uma única requisição evita dezenas de POSTs
-  // simultâneos e os HTTP 429 que faziam retornar somente parte dos players.
-  const request = hostedApiSignal(signal, timeoutMs);
-  let payload;
-  try {
-    const response = await undiciFetch(`${PROVIDERS_API_BASE}/api/v1/search`, {
-      method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tmdbId, mediaType, season, episode, providerIds: ids }),
-      signal: request.signal
-    });
-    if (!response.ok) throw new Error(`Providers API HTTP ${response.status}`);
-    payload = await response.json();
-  } catch (error) {
-    sourceLog('hosted-provider-search-error', { providers: ids, message: String(error?.message || error).slice(0, 160) });
-    return [];
-  } finally { request.close(); }
-  const rawStreams = [
-    ...(Array.isArray(payload?.results) ? payload.results.flatMap((result) => Array.isArray(result?.streams) ? result.streams : []) : []),
-    ...(Array.isArray(payload?.streams) ? payload.streams : [])
-  ];
-  const streams = rawStreams.map((stream) => {
+  // Todos os lotes são disparados em paralelo para reunir todos os provedores
+  // dentro do prazo global, sem parar no primeiro player encontrado.
+  const batches = [];
+  for (let index = 0; index < ids.length; index += 2) batches.push(ids.slice(index, index + 2));
+  const batchStreams = await Promise.all(batches.map(async (batch) => {
+    const request = hostedApiSignal(signal, timeoutMs);
+    try {
+      const response = await undiciFetch(`${PROVIDERS_API_BASE}/api/v1/search`, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tmdbId, mediaType, season, episode, providerIds: batch }),
+        signal: request.signal
+      });
+      if (!response.ok) throw new Error(`Providers API HTTP ${response.status}`);
+      const payload = await response.json();
+      return [
+        ...(Array.isArray(payload?.results) ? payload.results.flatMap((result) => Array.isArray(result?.streams) ? result.streams : []) : []),
+        ...(Array.isArray(payload?.streams) ? payload.streams : [])
+      ];
+    } catch (error) {
+      sourceLog('hosted-provider-batch-error', { providers: batch, message: String(error?.message || error).slice(0, 160) });
+      return [];
+    } finally { request.close(); }
+  }));
+  const streams = batchStreams.flatMap((items) => items).map((stream) => {
     const rawUrl = String(stream?.url || stream?.externalUrl || '').trim();
     if (!/^https?:\/\//i.test(rawUrl)) return null;
     const provider = String(stream?.provider || stream?.sourceName || 'Provider');
@@ -3454,10 +3453,7 @@ async function searchHostedProviders({ tmdbId, mediaType, season, episode, provi
       ...(Object.keys(headers).length ? { behaviorHints: { proxyHeaders: { request: headers } } } : {})
     }, provider.toLowerCase().replace(/\s+/g, '-'));
   }).filter(Boolean);
-  // A resposta da API pode repetir o mesmo item em `results[].streams` e
-  // `streams[]`. Essas entradas continuam visíveis porque o operador pediu
-  // todos os streams brutos, inclusive variantes/duplicatas do payload.
-  return streams;
+  return [...new Map(streams.map((stream) => [stream.url, stream])).values()];
 }
 
 async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, signal = null, budgetMs = IMDB_STREAM_TIMEOUT_MS, testOptions = {}) {
@@ -3485,21 +3481,20 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
       episode: episode || null,
       providerIds: priority,
       signal,
-      timeoutMs: Math.min(35000, DIRECT_PROVIDER_API_TIMEOUT_MS, budgetMs)
+      timeoutMs: Math.min(25000, DIRECT_PROVIDER_API_TIMEOUT_MS, budgetMs)
     }).catch((error) => {
       sourceLog('hosted-provider-api-error', { id: imdb || tmdbId, message: String(error?.message || error).slice(0, 180) });
       return [];
     });
-    if (!signal?.aborted && !testOptions.bypassCache && remoteStreams.length) DIRECT_PROVIDER_STREAM_CACHE.set(cacheKey, {
-      streams: remoteStreams, expiresAt: Date.now() + 30_000
-    });
-    sourceLog('hosted-provider-api-result', {
-      id: imdb || tmdbId, type, anime: isAnimeMetadata(tmdbResult), streams: remoteStreams.length,
-      localFallback: false
-    });
-    // Com a API Render configurada, não consultar adapters/fontes locais
-    // quando a API retornar vazio, erro ou limite de requisições.
-    return testOptions.returnOutcome ? { streams: remoteStreams, outcomes: [], elapsedMs: 0 } : remoteStreams;
+    if (remoteStreams.length) {
+      if (!signal?.aborted && !testOptions.bypassCache) DIRECT_PROVIDER_STREAM_CACHE.set(cacheKey, {
+        streams: remoteStreams, expiresAt: Date.now() + 30_000
+      });
+      sourceLog('hosted-provider-api-result', {
+        id: imdb || tmdbId, type, anime: isAnimeMetadata(tmdbResult), streams: remoteStreams.length
+      });
+      return testOptions.returnOutcome ? { streams: remoteStreams, outcomes: [], elapsedMs: 0 } : remoteStreams;
+    }
   }
 
   const tasks = Array.isArray(testOptions.sourceTasks)
@@ -3590,7 +3585,7 @@ const CACHE_TTL_MS = Number(
 const M3U_TIMEOUT_MS = Math.min(positiveEnvNumber('M3U_TIMEOUT_MS', 25000, 25000), 25000);
 const M3U_SOURCE_TIMEOUT_MS = Math.min(positiveEnvNumber('M3U_SOURCE_TIMEOUT_MS', 25000, 25000), 25000);
 const M3U_SOURCE_BODY_TIMEOUT_MS = Math.min(positiveEnvNumber('M3U_SOURCE_BODY_TIMEOUT_MS', 120000, 120000), 120000);
-const DIRECT_PROVIDER_API_TIMEOUT_MS = Math.min(positiveEnvNumber('DIRECT_PROVIDER_API_TIMEOUT_MS', 35000, 35000), 35000);
+const DIRECT_PROVIDER_API_TIMEOUT_MS = Math.min(positiveEnvNumber('DIRECT_PROVIDER_API_TIMEOUT_MS', 25000, 25000), 25000);
 
 // Limite por resposta e por varredura do catálogo. Mantém a primeira resposta rápida.
 const CATALOG_LIMIT_VALUE = Number(CONFIG.CATALOG_LIMIT ?? 0);
@@ -4050,7 +4045,6 @@ function parseXtreamTvId(value) {
 }
 
 function findXtreamTvSource(sourceSlug) {
-  if (String(sourceSlug || '').toLowerCase() === 'hosted' && XTREAM_API_BASE) return HOSTED_XTREAM_SOURCE;
   return XTREAM_SOURCES.find((source) => xtreamTvSourceSlug(source.id) === String(sourceSlug || '').toLowerCase()) || null;
 }
 
@@ -4062,27 +4056,6 @@ function xtreamTvRequest(source, action, timeoutMs, params = {}) {
   return source.id === 'primary'
     ? xtreamRequest(action, params, timeoutMs)
     : xtreamSourceRequest({ ...source, timeoutMs }, action, params);
-}
-
-async function hostedXtreamLiveItem(streamId) {
-  if (!XTREAM_API_BASE) return null;
-  const url = new URL(`${XTREAM_API_BASE}/api/v1/catalog/live`);
-  url.searchParams.set('limit', '500');
-  url.searchParams.set('sourceId', XTREAM_LIVE_CATALOG_SOURCE_ID);
-  const payload = await fetchJsonWithTimeout(url, Math.max(60000, XTREAM_TIMEOUT_MS), 'Xtream API TV ao vivo');
-  const item = (Array.isArray(payload?.items) ? payload.items : []).find((candidate) =>
-    String(candidate.stream_id ?? candidate.id ?? '') === String(streamId)
-  );
-  if (!item) return null;
-  return {
-    ...item,
-    stream_id: item.stream_id || item.id,
-    stream_icon: item.image || item.stream_icon,
-    xtreamSource: HOSTED_XTREAM_SOURCE,
-    hostedPlaybackUrl: item.playbackPath
-      ? `${XTREAM_API_BASE}${String(item.playbackPath).startsWith('/') ? '' : '/'}${item.playbackPath}`
-      : undefined
-  };
 }
 
 const shortEpgCache = new Map();
@@ -4203,10 +4176,7 @@ async function xtreamMultiSourceTvCatalog(extra = {}, sourceList = XTREAM_SOURCE
 async function xtreamCatalog(type, extra = {}, sourceOverride = null) {
   const action = type === 'movie' ? 'get_vod_streams' : type === 'series' ? 'get_series' : 'get_live_streams';
   const categoryAction = type === 'movie' ? 'get_vod_categories' : type === 'series' ? 'get_series_categories' : 'get_live_categories';
-  // Com a API Render configurada, TV usa uma única consulta consolidada.
-  // As fontes Xtream locais continuam disponíveis para compatibilidade de
-  // reprodução antiga, mas nunca participam do catálogo IPTV principal.
-  const source = sourceOverride || (type === 'tv' && XTREAM_API_BASE ? null : XTREAM_SOURCES.find((item) => item.id === 'primary'));
+  const source = sourceOverride || XTREAM_SOURCES.find((item) => item.id === 'primary');
   const request = (requestAction, timeoutMs) => source?.id === 'primary'
     ? xtreamRequest(requestAction, {}, timeoutMs)
     : xtreamSourceRequest({ ...source, timeoutMs }, requestAction);
@@ -4214,14 +4184,13 @@ async function xtreamCatalog(type, extra = {}, sourceOverride = null) {
     const kind = type === 'movie' ? 'vod' : type === 'series' ? 'series' : 'live';
     const url = new URL(`${XTREAM_API_BASE}/api/v1/catalog/${kind}`);
     url.searchParams.set('limit', String(Math.min(500, catalogLimitFor(extra))));
-    if (type === 'tv') url.searchParams.set('sourceId', XTREAM_LIVE_CATALOG_SOURCE_ID);
     if (extra.search) url.searchParams.set('search', String(extra.search));
     // A API hospedada agrega várias fontes Xtream e pode levar mais que o timeout
     // individual das fontes. Este caminho continua exclusivo para filmes/séries;
     // não há fallback para download de playlists M3U.
     const payload = await fetchJsonWithTimeout(url, Math.max(60000, XTREAM_TIMEOUT_MS), 'Xtream API catálogo');
     const remoteItems = Array.isArray(payload?.items) ? payload.items : [];
-    const remoteSource = HOSTED_XTREAM_SOURCE;
+    const remoteSource = { id: 'hosted', sourceName: 'Xtream hospedado', name: 'Xtream hospedado', base: XTREAM_API_BASE };
     const items = remoteItems.map((item) => ({
       ...item,
       stream_id: item.stream_id || (type === 'movie' || type === 'tv' ? item.id : undefined),
@@ -4336,16 +4305,14 @@ async function fetchJsonWithTimeout(url, timeoutMs, label, parentSignal = null, 
   else parentSignal?.addEventListener('abort', abortFromParent, { once: true });
 
   try {
-    const { method = 'GET', headers: extraHeaders = {}, body } = requestHeaders || {};
     const response = await undiciFetch(url, {
-      method,
+      method: 'GET',
       dispatcher: upstreamAgent,
       signal: controller.signal,
       headers: {
         Accept: 'application/json',
-        ...extraHeaders
-      },
-      ...(body === undefined ? {} : { body })
+        ...requestHeaders
+      }
     });
 
     if (!response.ok) {
@@ -4971,9 +4938,7 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
         sourceLog('hosted-xtream-api-error', { id, message: String(error?.message || error).slice(0, 180) });
         return [];
       });
-    sourceLog('hosted-xtream-api-result', { id, streams: remote.length, localFallback: false });
-    // A API Xtream do Render é a única fonte de filmes e séries neste fluxo.
-    return testOptions.returnOutcome ? { streams: remote, outcomes: [], elapsedMs: 0 } : remote;
+    if (remote.length) return testOptions.returnOutcome ? { streams: remote, outcomes: [], elapsedMs: 0 } : remote;
   }
   const sourcesToSearch = xtreamSearchOrder(testOptions.sources || XTREAM_SOURCES);
   const requestSource = testOptions.requestSource || xtreamSourceRequest;
@@ -5105,30 +5070,6 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
 }
 async function findXtreamEntriesByTitle(type, title) {
   if (!['movie', 'tv'].includes(type)) return [];
-  if (type === 'tv' && XTREAM_API_BASE) {
-    try {
-      const response = await fetchJsonWithTimeout(new URL(`${XTREAM_API_BASE}/api/v1/streams/search`), 30000, 'Xtream API players TV', null, {
-        method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mediaType: 'tv', title: String(title || '') })
-      });
-      const streams = Array.isArray(response?.streams) ? response.streams : [];
-      return streams.map((item, index) => {
-        const playback = String(item?.playbackPath || '').trim();
-        if (!playback) return null;
-        return xtreamEntry({
-          ...item,
-          id: item.id || `hosted-tv-${index + 1}`,
-          stream_id: item.stream_id || item.id || index + 1,
-          name: item.name || title,
-          hostedPlaybackUrl: /^https?:\/\//i.test(playback) ? playback : `${XTREAM_API_BASE}${playback.startsWith('/') ? '' : '/'}${playback}`,
-          xtreamSource: HOSTED_XTREAM_SOURCE
-        }, 'live', item.container_extension || 'ts');
-      }).filter(Boolean);
-    } catch (error) {
-      sourceLog('hosted-xtream-tv-players-error', { title: String(title || '').slice(0, 120), message: error.message });
-    }
-  }
   const names = [...titleVariants(title, type)];
   const sourceMatches = await Promise.all(XTREAM_SOURCES.map(async (source) => {
     try {
@@ -6372,7 +6313,13 @@ function compareStreams(left, right) {
 }
 
 function combineStreams(...groups) {
-  return groups.flat().filter((stream) => stream?.url).sort(compareStreams);
+  const unique = new Map();
+  for (const stream of groups.flat()) {
+    if (!stream?.url) continue;
+    const key = `${imdbStreamSource(stream)}\u0000${stream.url}`;
+    if (!unique.has(key)) unique.set(key, stream);
+  }
+  return [...unique.values()].sort(compareStreams);
 }
 
 function shouldUseImdbM3uFallback(nonM3uStreams = []) {
@@ -6972,19 +6919,6 @@ builder.defineCatalogHandler(
         sourceLog('catalog-fast-tmdb-ready', { type: rankingType, count: ranking.metas.length, streams: 'providers+xtream-priority-on-open' });
         return ranking;
       }
-      // TV IPTV/Xtream nunca deve cair no parser de M3U local. A API Render
-      // devolve o catálogo consolidado em uma única chamada; a resolução do
-      // player acontece somente na abertura do canal.
-      if (id === 'm3u-tv' && XTREAM_API_BASE) {
-        try {
-          const metas = await xtreamCatalog('tv', extra);
-          sourceLog('catalog-tv-hosted-ready', { source: 'Xtream hospedado', count: metas.length, mode: 'single-catalog-request' });
-          return { metas };
-        } catch (error) {
-          sourceLog('catalog-tv-hosted-error', { source: 'Xtream hospedado', error: String(error.message || '').slice(0, 160), mode: 'no-local-m3u-fallback' });
-          return { metas: [] };
-        }
-      }
       const xtreamType = id === 'm3u-movies' ? 'movie' : id === 'm3u-series' ? 'series' : id === 'm3u-tv' ? 'tv' : type;
       if (['movie', 'series', 'tv'].includes(xtreamType)) {
         if (xtreamType !== 'tv' && (XTREAM_ENABLED || XTREAM_API_BASE)) {
@@ -7197,21 +7131,13 @@ builder.defineMetaHandler(
       return { meta: await enrichMeta(item, { ...xtreamSeriesMeta(item), videos: episodes }) };
     }
     const tvMatch = parseXtreamTvId(id);
-    if ((XTREAM_ENABLED || XTREAM_API_BASE) && tvMatch) {
+    if (XTREAM_ENABLED && tvMatch) {
       const source = findXtreamTvSource(tvMatch.sourceSlug);
       if (!source) return { meta: null };
       const tvId = tvMatch.streamId;
       const cacheKey = xtreamTvCacheKey(source, tvId);
       let item = xtreamTvCache.get(cacheKey);
-      if (!item && source.id === 'hosted') {
-        try {
-          item = await hostedXtreamLiveItem(tvId);
-          if (item) xtreamTvCache.set(cacheKey, item);
-        } catch (error) {
-          sourceLog('hosted-xtream-channel-metadata-error', { message: error.message });
-        }
-      }
-      if (!item && source.id !== 'hosted') {
+      if (!item) {
         try {
           const timeoutMs = Math.min(25000, Math.max(1, Number(source.xtreamTimeoutMs) || CHANNEL_XTREAM_TIMEOUT_MS));
           const live = await xtreamTvRequest(source, 'get_live_streams', timeoutMs);
@@ -7346,7 +7272,7 @@ builder.defineStreamHandler(
       return { streams: primary.length ? primary : streamsForEntries(m3uItems) };
     }
     const tvMatch = parseXtreamTvId(id);
-    if ((XTREAM_ENABLED || XTREAM_API_BASE) && tvMatch) {
+    if (XTREAM_ENABLED && tvMatch) {
       const source = findXtreamTvSource(tvMatch.sourceSlug);
       if (!source) return { streams: [] };
       const tvId = tvMatch.streamId;
@@ -7354,15 +7280,7 @@ builder.defineStreamHandler(
       let selected = xtreamTvCache.get(cacheKey) || (source.id === 'primary'
         ? xtreamLiveItems.find((item) => String(item.stream_id) === tvId)
         : undefined);
-      if (!selected && source.id === 'hosted') {
-        try {
-          selected = await hostedXtreamLiveItem(tvId);
-          if (selected) xtreamTvCache.set(cacheKey, selected);
-        } catch (error) {
-          sourceLog('hosted-xtream-channel-stream-error', { id, message: error.message });
-        }
-      }
-      if (!selected && source.id !== 'hosted') {
+      if (!selected) {
         try {
           const timeoutMs = Math.min(25000, Math.max(1, Number(source.xtreamTimeoutMs) || CHANNEL_XTREAM_TIMEOUT_MS));
           const live = await xtreamTvRequest(source, 'get_live_streams', timeoutMs);
@@ -7576,7 +7494,7 @@ builder.defineStreamHandler(
                   sourcesAvailable: providerPriorityTasks.length
                 })
               : providerPriority,
-            () => (!animeSearch && (XTREAM_API_BASE || xtreamPrioritySources.length))
+            () => (XTREAM_API_BASE || xtreamPrioritySources.length)
               ? findXtreamEntriesForImdb(type, id, result, priorityBudgetMs, {
                   sources: xtreamPrioritySources,
                   useHostedApi: true,
@@ -7629,15 +7547,14 @@ builder.defineStreamHandler(
           elapsedMs: providerPriority.elapsedMs || Date.now() - priorityStartedAt,
           serial: false, parallel: true, sources: providerOutcomes
         });
-        sourceLog(animeSearch ? 'xtream-search-skipped' : 'xtream-search-complete', {
+        sourceLog('xtream-search-complete', {
           ...(xtreamPriority.summary || {}), id: requestSourceId, type,
           sourcesAvailable: xtreamPrioritySources.length,
-          sourcesStarted: animeSearch ? 0 : xtreamOutcomes.filter((item) => !['not_started', 'skipped-priority'].includes(item.status)).length,
-          sourcesWithMedia: animeSearch ? 0 : (xtreamPriority.outcomes || []).filter((item) => item.status === 'ok').length,
-          streams: animeSearch ? 0 : xtreamEntries.length,
-          elapsedMs: animeSearch ? 0 : (xtreamPriority.elapsedMs || Date.now() - priorityStartedAt),
-          reason: animeSearch ? 'anime usa Providers gerais prioritários e adapters especializados' : undefined,
-          serial: false, parallel: true, sources: animeSearch ? [] : xtreamOutcomes
+          sourcesStarted: xtreamOutcomes.filter((item) => !['not_started', 'skipped-priority'].includes(item.status)).length,
+          sourcesWithMedia: (xtreamPriority.outcomes || []).filter((item) => item.status === 'ok').length,
+          streams: xtreamEntries.length,
+          elapsedMs: xtreamPriority.elapsedMs || Date.now() - priorityStartedAt,
+          serial: false, parallel: true, sources: xtreamOutcomes
         });
         sourceLog('imdb-priority-phase-complete', {
           id: requestSourceId,
@@ -7683,10 +7600,9 @@ builder.defineStreamHandler(
         }
 
         const directStreamsFound = providerApiStreams.length + xtreamEntries.length > 0;
-        // M3U permanece documentada na configuração, mas não é baixada nem
-        // consultada para filmes/séries: o fluxo usa apenas Providers/Xtream
-        // hospedados nas APIs Render.
-        const m3uBudgetMs = 0;
+        const m3uBudgetMs = shouldUseImdbM3uFallback([...providerApiStreams, ...streamsForEntries(xtreamEntries)])
+          ? Math.min(IMDB_M3U_TIMEOUT_MS, providerBudgetRemainingMs())
+          : 0;
         const m3uResult = result && m3uBudgetMs > 0
           ? await findM3uFromCache(m3uBudgetMs)
           : emptyM3uMatch;
