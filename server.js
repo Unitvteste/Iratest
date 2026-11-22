@@ -6276,9 +6276,8 @@ function iracemaflixStreamName(quality, server = '') {
   else if (/576p|480p|\bsd\b/.test(value)) { label = 'SD'; emoji = '📼'; }
   const extras = [value.includes('hdr') ? 'HDR' : '', value.includes(' dv') || /\bdv\b/.test(value) ? 'DV' : ''].filter(Boolean);
   const qualityLabel = label ? [label, ...extras].join(' ') : 'Auto';
-  // Repete a fonte também no nome curto, pois alguns clientes Stremio
-  // ocultam o campo title e exibem somente a primeira linha do player.
-  return `${emoji} Iracemaflix • ${qualityLabel}${server ? ` • ${server}` : ''}`;
+  // A fonte fica somente nos detalhes do player, não no nome curto.
+  return `${emoji} Iracemaflix • ${qualityLabel}`;
 }
 
 function streamQualityRank(stream) {
