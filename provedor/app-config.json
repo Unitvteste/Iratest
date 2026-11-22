@@ -11,7 +11,7 @@
   "XTREAM_TIMEOUT_MS": 25000,
   "PROVIDERS_API_BASE": "https://apiprovedor.onrender.com",
   "XTREAM_API_BASE": "https://apixtream.onrender.com",
-  "XTREAM_LIVE_CATALOG_SOURCE_ID": "one-tv",
+  "XTREAM_LIVE_CATALOG_SOURCE_ID": "env-novomundo",
   "TV_API_BASE": "https://apitvaddon.onrender.com/api/v1",
   "PROVIDER_SEARCH_PRIORITY": [
     "megaembed",
