@@ -188,6 +188,11 @@ footer{margin-top:3.5rem;padding-top:1.4rem;border-top:1px solid var(--line);col
 .tm img{width:2.8rem;height:2.8rem;object-fit:contain}
 .vs b{color:var(--muted)}
 .evtt{font-weight:800;text-align:center;line-height:1.4}
+.evb{display:grid;place-items:center;gap:.5rem;padding:1.1rem .6rem;border-radius:.8rem;text-align:center;background:linear-gradient(#0b112088,#0b1120d0),var(--bgimg,none),linear-gradient(135deg,var(--g1,#348cfe33),var(--g2,#8a5cff33));background-size:cover;background-position:center;position:relative;overflow:hidden}
+.evb .ico{font-size:2.4rem;line-height:1}
+.evb img{max-width:60%;max-height:4.5rem;object-fit:contain}
+.evb .evtt{position:relative}
+.tm .fb{width:2.8rem;height:2.8rem;border-radius:50%;display:grid;place-items:center;font:800 .9rem Unbounded,sans-serif;background:linear-gradient(135deg,var(--g1,#348cfe55),var(--g2,#8a5cff55))}
 .fnote{flex-basis:100%;max-width:46rem;color:var(--muted);font-size:.92rem;line-height:1.7}
 .fnote strong{display:block;color:var(--text);font:700 1.05rem Unbounded,sans-serif;margin-bottom:.4rem}
 .tmc{opacity:.65;font-size:.74rem;max-width:26rem}
@@ -357,8 +362,32 @@ shelf('rail-d','tv','discover/tv?with_genres=18&with_original_language=ko&sort_b
 
 /* Eventos do dia (Rei dos Embeds): somente agenda, sem links de transmissão */
 var EV=[],evg=document.getElementById('evgrid'),evt=document.getElementById('evtabs');
-function team(n,src){var d=document.createElement('div');d.className='tm';
-  if(src){var im=new Image();im.alt='';im.referrerPolicy='no-referrer';im.onerror=function(){im.remove()};im.src=src;d.appendChild(im)}
+var SPORTS=[
+  [/futebol americano|american_football|nfl|super bowl/,'🏈','#8a4b1f55','#348cfe33'],
+  [/ufc|mma|boxe|boxing|luta|fight|combate|jiu/,'🥊','#ff4d4d55','#7a1f1f55'],
+  [/wwe|aew|wrestling/,'🤼','#ff4d4d55','#8a5cff44'],
+  [/f1|formula|fórmula|grand prix|\bgp\b|motogp|moto gp|nascar|indy|rally|automobil|corrida|stock car|endurance|wec/,'🏎️','#ff4d4d44','#33446a88'],
+  [/basquete|basket|nba|nbb|wnba/,'🏀','#ff8a3d55','#8a4b1f44'],
+  [/t[eê]nis|tennis|atp|wta|roland|wimbledon|us open/,'🎾','#c6e33d44','#35d07f33'],
+  [/v[oô]lei|volley/,'🏐','#348cfe44','#22e3c433'],
+  [/beisebol|baseball|mlb/,'⚾','#348cfe44','#ff4d4d33'],
+  [/h[oó]quei|hockey|nhl/,'🏒','#22e3c433','#348cfe55'],
+  [/rugby/,'🏉','#35d07f44','#8a4b1f44'],
+  [/golfe|golf|pga/,'⛳','#35d07f55','#22e3c433'],
+  [/ciclismo|tour de france|cycling/,'🚴','#ffd23d44','#348cfe33'],
+  [/handebol|handball/,'🤾','#348cfe44','#8a5cff44'],
+  [/futsal|futebol|football|soccer|copa|liga|brasileir|libertadores|champions|premier|serie a|s[eé]rie [ab]/,'⚽','#35d07f44','#348cfe33']
+];
+function norm(t){return String(t||'').toLowerCase()}
+function sport(e){var t=norm([e.sport_key,e.category,e.competition,e.title].join(' '));
+  for(var i=0;i<SPORTS.length;i++)if(SPORTS[i][0].test(t))return SPORTS[i];
+  return [null,'🏆','#348cfe33','#8a5cff33']}
+function evImg(e){var k=['image','banner','thumbnail','thumb','poster','cover','img','logo','foto','imagem'];
+  for(var i=0;i<k.length;i++){var v=e[k[i]];if(typeof v==='string'&&/^https?:/.test(v))return v}return ''}
+function initials(n){return String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(function(w){return w[0]}).join('').toUpperCase()}
+function team(n,src,sp){var d=document.createElement('div');d.className='tm';
+  function fb(){var f=document.createElement('div');f.className='fb';f.style.setProperty('--g1',sp[2]);f.style.setProperty('--g2',sp[3]);f.textContent=initials(n);d.insertBefore(f,d.firstChild)}
+  if(src){var im=new Image();im.alt='';im.referrerPolicy='no-referrer';im.onerror=function(){im.remove();fb()};im.src=src;d.appendChild(im)}else fb();
   var s=document.createElement('span');s.textContent=n;d.appendChild(s);return d}
 function evRender(cat){
   evg.innerHTML='';
@@ -374,8 +403,13 @@ function evRender(cat){
     if(e.time1_name&&e.time2_name&&e.visual_model==='versus'){
       var v=document.createElement('div');v.className='vs';
       var x=document.createElement('b');x.textContent='x';
-      v.appendChild(team(e.time1_name,e.time1));v.appendChild(x);v.appendChild(team(e.time2_name,e.time2));c.appendChild(v)}
-    else{var t=document.createElement('div');t.className='evtt';t.textContent=e.title;c.appendChild(t)}
+      v.appendChild(team(e.time1_name,e.time1,sport(e)));v.appendChild(x);v.appendChild(team(e.time2_name,e.time2,sport(e)));c.appendChild(v)}
+    else{var sp=sport(e),bn=document.createElement('div');bn.className='evb';bn.style.setProperty('--g1',sp[2]);bn.style.setProperty('--g2',sp[3]);
+      if(/^https?:/.test(e.poster||''))bn.style.setProperty('--bgimg','url("'+e.poster.replace(/"/g,'%22')+'")');
+      var ic=document.createElement('div');ic.className='ico';ic.textContent=sp[1];
+      if(/^https?:/.test(e.event_logo||'')){var im=new Image();im.alt='';im.referrerPolicy='no-referrer';im.onerror=function(){im.remove();ic.hidden=false};im.src=e.event_logo;ic.hidden=true;bn.appendChild(im)}
+      bn.appendChild(ic);
+      var t=document.createElement('div');t.className='evtt';t.textContent=e.title;bn.appendChild(t);c.appendChild(bn)}
     evg.appendChild(c)})}
 fetch('https://reidosembeds.lat/api/eventos').then(function(r){return r.json()}).then(function(d){
   var today=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
@@ -487,15 +521,14 @@ function frame(){t+=.01;var w=innerWidth,h=innerHeight;cx.clearRect(0,0,w,h);
   requestAnimationFrame(frame)}
 if(!matchMedia('(prefers-reduced-motion:reduce)').matches)frame();
 
-/* ============ CHECK REAL DOS ADDONS ============
-   Por tentativa (3x): 1) lê o manifest.json e valida; 2) pede o primeiro catálogo
-   do próprio manifesto e exige que venha com itens (prova que o backend funciona).
-   ATIVO    : manifesto + catálogo OK nas 3 tentativas, mediana < 2500 ms
-   INSTÁVEL : falhas parciais ou lento
-   OFFLINE  : manifesto não responde, ou catálogo falha em todas as tentativas
+/* ============ CHECK DOS ADDONS ============
+   Só lê o manifest.json (1 requisição leve por tentativa, 2 tentativas) e valida.
+   ATIVO    : manifesto OK, mediana < 2500 ms
+   INSTÁVEL : falha parcial ou lento
+   OFFLINE  : manifesto não responde
    SEM LEITURA: o servidor responde, mas o navegador bloqueia ler (CORS) - não dá p/ afirmar */
 (function(){
-  var TRIES=3,TIMEOUT=10000,SLOW=2500,EVERY=60000,busy=false;
+  var TRIES=2,TIMEOUT=10000,SLOW=2500,EVERY=60000,busy=false;
   function bad(e){
     var m=e.name==='AbortError'?'timeout':e.name==='SyntaxError'?'resposta não é JSON (página de erro ou servidor parado)':e.name==='TypeError'?'sem acesso (rede ou CORS)':(e.message||'falha');
     var x=new Error(m);x.net=e.name==='TypeError';return x}
@@ -514,14 +547,7 @@ if(!matchMedia('(prefers-reduced-motion:reduce)').matches)frame();
     var t0=performance.now();
     return get(url).then(function(j){
       if(!j||typeof j!=='object'||!(j.id||j.name)||!(j.resources||j.catalogs))throw new Error('manifesto inválido');
-      var ms=Math.round(performance.now()-t0);
-      var cat=(j.catalogs||[]).filter(function(c){return !(c.extra||[]).some(function(e){return e.isRequired})})[0];
-      if(!cat)return {ok:true,ms:ms,cat:null};
-      var cu=url.replace(/manifest\.json.*$/,'')+'catalog/'+cat.type+'/'+encodeURIComponent(cat.id)+'.json';
-      return get(cu).then(function(c){
-        var n=c&&c.metas?c.metas.length:0;
-        return {ok:true,ms:ms,cat:n>0,catErr:n>0?'':'catálogo vazio'};
-      },function(e){return {ok:true,ms:ms,cat:false,catErr:'catálogo: '+e.message}});
+      return {ok:true,ms:Math.round(performance.now()-t0)};
     }).catch(function(e){
       var ms=Math.round(performance.now()-t0);
       if(!e.net)return {ok:false,ms:ms,err:e.message};
@@ -541,11 +567,8 @@ if(!matchMedia('(prefers-reduced-motion:reduce)').matches)frame();
       if(rs.some(function(r){return r.unk}))return {s:'unk',txt:'Sem leitura',msg:rs[rs.length-1].err};
       return {s:'down',txt:'Offline',msg:rs[rs.length-1].err||'sem resposta'};
     }
-    var full=good.filter(function(r){return r.cat!==false});
-    var ce=(good.filter(function(r){return r.cat===false})[0]||{}).catErr||'';
-    if(!full.length)return {s:'down',txt:'Offline',msg:'manifesto responde, mas '+ce};
-    var ms=full.map(function(r){return r.ms}).sort(function(a,b){return a-b}),med=ms[Math.floor(ms.length/2)];
-    if(full.length<rs.length)return {s:'slow',txt:'Instável',msg:full.length+'/'+rs.length+' ok'+(ce?' · '+ce:'')+' · '+med+' ms'};
+    var ms=good.map(function(r){return r.ms}).sort(function(a,b){return a-b}),med=ms[Math.floor(ms.length/2)];
+    if(good.length<rs.length)return {s:'slow',txt:'Instável',msg:good.length+'/'+rs.length+' ok · '+med+' ms'};
     if(med>=SLOW)return {s:'slow',txt:'Instável',msg:'lento · '+med+' ms'};
     return {s:'ok',txt:'Ativo',msg:med+' ms'};
   }
