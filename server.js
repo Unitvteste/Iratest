@@ -7925,6 +7925,88 @@ function isReiDirectProxyHost(value) {
   catch { return false; }
 }
 
+const REI_DIRECT_ASSET_TTL_MS = 2 * 60 * 1000;
+const REI_DIRECT_ASSET_LIMIT = 3000;
+const reiDirectAssets = new Map();
+
+function normalizeReiDirectAssetUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.href.length > 4096) return '';
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, '');
+    if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) return '';
+    if (net.isIP(hostname) && !isPublicMediaAddress(hostname)) return '';
+    url.hash = '';
+    return url.href;
+  } catch { return ''; }
+}
+
+function isAllowedReiDirectSource(value) {
+  const normalized = normalizeReiDirectAssetUrl(value);
+  if (!normalized) return false;
+  if (isReiDirectProxyHost(normalized)) return true;
+  const expiresAt = reiDirectAssets.get(normalized);
+  if (!expiresAt || expiresAt <= Date.now()) {
+    reiDirectAssets.delete(normalized);
+    return false;
+  }
+  return true;
+}
+
+function rememberReiDirectPlaylistResources(playlist, playlistUrl, trustedSourceUrl = playlistUrl) {
+  const baseUrl = normalizeReiDirectAssetUrl(playlistUrl);
+  if (!baseUrl || !isAllowedReiDirectSource(trustedSourceUrl) || !String(playlist || '').includes('#EXTM3U')) return 0;
+  const candidates = [];
+  const lines = String(playlist).split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const uriMatches = [...line.matchAll(/URI="([^"]+)"/gi)];
+    for (const match of uriMatches) candidates.push(match[1]);
+    if (!trimmed.startsWith('#')) candidates.push(trimmed);
+  }
+  let added = 0;
+  for (const candidate of candidates) {
+    try {
+      const normalized = normalizeReiDirectAssetUrl(new URL(candidate, baseUrl).href);
+      if (!normalized || isReiDirectProxyHost(normalized)) continue;
+      reiDirectAssets.set(normalized, Date.now() + REI_DIRECT_ASSET_TTL_MS);
+      added += 1;
+    } catch { /* URI inválida ou esquema não HTTP */ }
+  }
+  while (reiDirectAssets.size > REI_DIRECT_ASSET_LIMIT) reiDirectAssets.delete(reiDirectAssets.keys().next().value);
+  return added;
+}
+
+async function isSafePublicReiDirectUrl(value) {
+  const normalized = normalizeReiDirectAssetUrl(value);
+  if (!normalized) return false;
+  try {
+    const hostname = new URL(normalized).hostname.toLowerCase().replace(/\.$/, '');
+    const addresses = net.isIP(hostname)
+      ? [{ address: hostname }]
+      : await dns.promises.lookup(hostname, { all: true, verbatim: true });
+    return addresses.length > 0 && addresses.every(({ address }) => isPublicMediaAddress(address));
+  } catch { return false; }
+}
+
+async function fetchSafeReiDirect(sourceUrl, options) {
+  let current = normalizeReiDirectAssetUrl(sourceUrl);
+  if (!current || !isAllowedReiDirectSource(current)) throw new Error('Fonte direta do Rei não autorizada');
+  for (let redirects = 0; redirects <= 4; redirects += 1) {
+    if (!await isSafePublicReiDirectUrl(current)) throw new Error('Destino direto do Rei não é público');
+    const response = await fetch(current, { ...options, redirect: 'manual' });
+    if (![301, 302, 303, 307, 308].includes(response.status)) return response;
+    const location = response.headers.get('location');
+    if (!location) return response;
+    await response.body?.cancel().catch(() => {});
+    try { current = normalizeReiDirectAssetUrl(new URL(location, current).href); }
+    catch { current = ''; }
+    if (!current) throw new Error('Redirecionamento direto do Rei inválido');
+  }
+  throw new Error('Muitos redirecionamentos diretos do Rei');
+}
+
 function decodeBase64Url(value) {
   return Buffer.from(String(value || ''), 'base64url').toString('utf8');
 }
@@ -8205,15 +8287,17 @@ app.get('/rei-direct.m3u8', async (req, res) => {
   try {
     sourceUrl = decodeBase64Url(req.query.source);
     const referer = decodeBase64Url(req.query.referer);
-    if (!isReiDirectProxyHost(sourceUrl)) return res.status(400).type('text/plain').send('Fonte direta do Rei inválida');
+    if (!isAllowedReiDirectSource(sourceUrl)) return res.status(400).type('text/plain').send('Fonte direta do Rei inválida');
+    if (!await isSafePublicReiDirectUrl(sourceUrl)) return res.status(400).type('text/plain').send('Fonte direta do Rei inválida');
     const sourceOrigin = (() => { try { return new URL(referer).origin; } catch { return ''; } })();
-    const response = await fetch(sourceUrl, {
-      redirect: 'follow',
+    const range = String(req.headers.range || '');
+    const response = await fetchSafeReiDirect(sourceUrl, {
       headers: {
         'User-Agent': USER_AGENT,
         Accept: 'application/vnd.apple.mpegurl, application/x-mpegURL, video/*, */*',
         ...(referer ? { Referer: referer } : {}),
-        ...(sourceOrigin ? { Origin: sourceOrigin } : {})
+        ...(sourceOrigin ? { Origin: sourceOrigin } : {}),
+        ...( /^bytes=\d*-\d*(?:,\d*-\d*)*$/.test(range) ? { Range: range } : {})
       },
       signal: AbortSignal.timeout(12000)
     });
@@ -8222,21 +8306,27 @@ app.get('/rei-direct.m3u8', async (req, res) => {
     const body = Buffer.from(await response.arrayBuffer());
     const text = body.toString('utf8');
     if (!text.includes('#EXTM3U')) {
-      res.set({ 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' });
-      return res.type(contentType || 'application/octet-stream').send(body);
+      const headers = { 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' };
+      const contentRange = response.headers.get('content-range');
+      const acceptRanges = response.headers.get('accept-ranges');
+      if (contentRange) headers['Content-Range'] = contentRange;
+      if (acceptRanges) headers['Accept-Ranges'] = acceptRanges;
+      return res.status(response.status).set(headers).type(contentType || 'application/octet-stream').send(body);
     }
+    const playlistBaseUrl = response.url || sourceUrl;
+    rememberReiDirectPlaylistResources(text, playlistBaseUrl, sourceUrl);
     const playlist = text.split(/\r?\n/).map((line) => {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith('#')) {
         return line.replace(/URI="([^"]+)"/i, (_match, uri) => {
           try {
-            const absolute = new URL(uri, sourceUrl).href;
+            const absolute = new URL(uri, playlistBaseUrl).href;
             return `URI="/rei-direct.m3u8?source=${encodeURIComponent(encodeBase64Url(absolute))}&referer=${encodeURIComponent(encodeBase64Url(referer))}"`;
           } catch { return `URI="${uri}"`; }
         });
       }
       try {
-        const absolute = new URL(trimmed, sourceUrl).href;
+        const absolute = new URL(trimmed, playlistBaseUrl).href;
         return `/rei-direct.m3u8?source=${encodeURIComponent(encodeBase64Url(absolute))}&referer=${encodeURIComponent(encodeBase64Url(referer))}`;
       } catch { return line; }
     }).join('\n');
@@ -8390,6 +8480,12 @@ module.exports._test = {
     providerResolver: ProviderResolver._test,
     liveTv: LiveTv._test,
     prioritizeEmbedCanais,
+    reiDirectProxy: {
+      isAllowedSource: isAllowedReiDirectSource,
+      rememberPlaylistResources: rememberReiDirectPlaylistResources,
+      normalizeAssetUrl: normalizeReiDirectAssetUrl,
+      clearAssets: () => reiDirectAssets.clear()
+    },
     providerPositionLanguage,
     normalizeMgebLanguage,
     normalizeMgebQuality,
