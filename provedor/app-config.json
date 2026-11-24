@@ -10,7 +10,7 @@
   "IMDB_STREAM_TIMEOUT_MS": 40000,
   "XTREAM_TIMEOUT_MS": 25000,
   "PROVIDERS_API_BASE": "https://apiprovedor.onrender.com",
-  "XTREAM_API_BASE": "https://apixtream.onrender.com",
+  "XTREAM_API_BASE": "https://apixtream-production.up.railway.app/",
   "TV_API_BASE": "https://apitvaddon-production.up.railway.app/api/v1",
   "PROVIDER_SEARCH_PRIORITY": [
     "megaembed",
