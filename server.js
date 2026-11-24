@@ -539,7 +539,7 @@ const LiveTv = (() => {
 const dns = require('node:dns').promises;
 const net = require('node:net');
 
-const API_BASE = (CONFIG.LIVE_TV_API_BASE || 'https://api.reidoscanais.im').replace(/\/$/, '');
+const API_BASE = (CONFIG.LIVE_TV_API_BASE || 'https://api.reidoscanais.si').replace(/\/$/, '');
 const LIVE_TV_FALLBACK_BASE = String(CONFIG.LIVE_TV_FALLBACK_BASE || '').replace(/\/$/, '');
 const EMBED_CANAIS_HOME = (CONFIG.EMBED_CANAIS_HOME || 'https://embedcanais.online/').replace(/\/$/, '/');
 const EMBED_CANAIS_TIMEOUT_MS = boundedInt(CONFIG.EMBED_CANAIS_TIMEOUT_MS, 25000, 3000, 25000);
@@ -810,8 +810,8 @@ async function fetchJson(endpoint) {
   return fetchJsonFromBase(API_BASE, endpoint);
 }
 
-async function fetchLiveItemsRenderThenLocal(renderEndpoint, localEndpoint, label) {
-  const stages = [{ id: 'render', base: API_BASE, endpoint: renderEndpoint }];
+async function fetchLiveItemsPrimaryThenLocal(renderEndpoint, localEndpoint, label) {
+  const stages = [{ id: 'primary', base: API_BASE, endpoint: renderEndpoint }];
   if (LIVE_TV_FALLBACK_BASE && new URL(LIVE_TV_FALLBACK_BASE).origin !== new URL(API_BASE).origin) {
     stages.push({ id: 'local', base: LIVE_TV_FALLBACK_BASE, endpoint: localEndpoint });
   }
@@ -832,12 +832,13 @@ async function fetchLiveItemsRenderThenLocal(renderEndpoint, localEndpoint, labe
 }
 
 async function fetchEmbedTvJson(pathname) {
-  const hostedPath = /apitvaddon\.onrender\.com/i.test(EMBEDTV_API_BASE)
+  const isHostedTvApi = /\/api\/v1\/?$/i.test(EMBEDTV_API_BASE);
+  const hostedPath = isHostedTvApi
     ? ({ '/api/channels': 'channels?source=embedtv&limit=500', '/api/events': 'embedtv/events', '/api/epg_all': 'embedtv/epg' }[pathname] || pathname.replace(/^\//, ''))
     : pathname;
   const remoteBase = EMBEDTV_API_BASE;
   const localBase = EMBEDTV_FALLBACK_BASE;
-  const attempts = [{ name: 'render', base: remoteBase, pathname: hostedPath }];
+  const attempts = [{ name: 'primary', base: remoteBase, pathname: hostedPath }];
   if (localBase && new URL(localBase).origin !== new URL(remoteBase).origin) {
     attempts.push({ name: 'local', base: localBase, pathname });
   }
@@ -996,8 +997,21 @@ function extractBalancedJsonArray(html, marker) {
 }
 async function getEmbedCanaisChannels(force = false) {
   if (!force && cache.embedCanais.data && Date.now() - cache.embedCanais.at < API_CACHE_MS) return cache.embedCanais.data;
+  try {
+    const payload = await fetchJsonFromBase(API_BASE, '/channels?source=embedcanais&limit=500', { referer: EMBED_CANAIS_HOME }, API_REQUEST_TIMEOUT_MS);
+    const channels = toArrayPayload(payload);
+    if (!channels) throw new Error('API Embed Canais respondeu sem lista');
+    if (channels.length) {
+      cache.embedCanais = { at: Date.now(), data: channels };
+      sourceLog('embedcanais-catalog-source-result', { phase: 'api-primary', count: channels.length });
+      return channels;
+    }
+    throw new Error('API Embed Canais retornou catálogo vazio');
+  } catch (error) {
+    sourceLog('embedcanais-api-catalog-error', { message: String(error.message || error).slice(0, 120) });
+  }
   const response = await fetch(EMBED_CANAIS_HOME, {
-    headers: { accept: 'text/html,application/xhtml+xml', 'user-agent': DEFAULT_UA },
+    headers: { accept: 'text/html,application/xhtml+xml', 'user-agent': DEFAULT_UA, referer: EMBED_CANAIS_HOME },
     signal: AbortSignal.timeout(EMBED_CANAIS_TIMEOUT_MS)
   });
   if (!response.ok) throw new Error(`Embed Canais respondeu HTTP ${response.status}`);
@@ -1036,16 +1050,16 @@ function addGloboAlternates(channel) {
 async function getChannels(force = false) {
   if (!force && cache.channels.data && Date.now() - cache.channels.at < API_CACHE_MS) return cache.channels.data;
   const [liveResult, embedResult] = await Promise.all([
-    fetchLiveItemsRenderThenLocal('/channels?source=live&limit=500', '/channels', 'rei-live-channels'),
+    fetchLiveItemsPrimaryThenLocal('/channels?source=live&limit=500', '/channels', 'rei-live-channels'),
     getEmbedTvChannels().then((items) => ({ items, errors: [] })).catch((error) => {
       sourceLog('embedtv-channel-catalog-error', { message: String(error.message || error).slice(0, 120) });
-      return { items: [], errors: ['render', 'local'] };
+      return { items: [], errors: ['primary', 'local'] };
     })
   ]);
   const data = Array.isArray(embedResult.items) ? embedResult.items : [];
   const liveData = Array.isArray(liveResult.items) ? liveResult.items : [];
   if (!data.length && !liveData.length && liveResult.errors.length && embedResult.errors.length) {
-    throw new Error('Render e upstreams locais de canais indisponíveis');
+    throw new Error('API principal e upstream local de canais indisponíveis');
   }
   const normalizeChannel = (channel, source = '') => {
     const sourceUrl = channel.sourceUrl || channel.source_url || channel.url || channel.href || '';
@@ -1107,7 +1121,7 @@ async function getChannels(force = false) {
   const channels = [...merged, ...fallbacks, ...extraEmbedChannels];
   cache.channels = { at: Date.now(), data: channels };
   cache.errors.channels = liveResult.errors.length
-    ? 'Render e upstream local de canais Rei dos Canais indisponíveis'
+    ? 'API principal e upstream local de canais Rei dos Canais indisponíveis'
     : null;
   return channels;
 }
@@ -1119,15 +1133,15 @@ async function getEvents(force = false, status = null) {
     return (await getEvents(force)).filter((event) => eventStatus(event) === status);
   }
   if (!force && cache.events.data && Date.now() - cache.events.at < API_CACHE_MS) return cache.events.data;
-  const result = await fetchLiveItemsRenderThenLocal('/sports', '/sports', 'rei-events');
+  const result = await fetchLiveItemsPrimaryThenLocal('/sports', '/sports', 'rei-events');
   if (!result.items.length && result.errors.length && cache.events.data?.length) {
-    cache.errors.events = 'Render e upstream local indisponíveis; exibindo cache anterior';
+    cache.errors.events = 'API principal e upstream local indisponíveis; exibindo cache anterior';
     sourceLog('rei-events-stale-cache', { count: cache.events.data.length });
     return cache.events.data;
   }
   const data = result.items.map((event) => ({ ...event, source_name: event.source_name || 'Rei dos Canais' }));
   cache.events = { at: Date.now(), data };
-  cache.errors.events = result.errors.length && !data.length ? 'Render e upstream local indisponíveis' : null;
+  cache.errors.events = result.errors.length && !data.length ? 'API principal e upstream local indisponíveis' : null;
   return data;
 }
 
@@ -1987,7 +2001,7 @@ async function health() {
   return {
   CHANNEL_CATALOG_ID, LIVE_EVENTS_CATALOG_ID, UPCOMING_EVENTS_CATALOG_ID, ALL_EVENTS_CATALOG_ID, EMBEDTV_CHANNEL_CATALOG_ID, EMBEDTV_EVENTS_CATALOG_ID,
   CHANNEL_PREFIX, EVENT_PREFIX, EMBEDTV_CHANNEL_PREFIX, EMBEDTV_EVENT_PREFIX, handlesCatalog, catalog, meta, streams, health,
-  _test: { embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, reiProxyUrl, addGloboAlternates, getChannels, getEvents, getEmbedTvChannels, getEmbedTvEvents, getEmbedTvEpg, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
+  _test: { embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, reiProxyUrl, addGloboAlternates, getChannels, getEvents, getEmbedCanaisChannels, getEmbedTvChannels, getEmbedTvEvents, getEmbedTvEpg, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
 };
 })();
 
