@@ -1597,7 +1597,7 @@ async function captureCandidatePlayback(candidate, itemKey, deadline = Date.now(
 }
 
 async function captureAllPlaybackOptions(item, itemKey) {
-  const candidates = streamCandidates(item).slice(0, 12);
+  const candidates = prioritizeEmbedCanais(streamCandidates(item)).slice(0, 12);
   const deadline = Date.now() + CAPTURE_TIMEOUT_MS;
   const resolved = await Promise.all(candidates.map(async (candidate, index) => {
     const captured = await captureCandidatePlayback(candidate, `${itemKey}-op${index + 1}`, deadline);
@@ -8090,9 +8090,10 @@ function reiProxyUrl(option, publicBaseUrl = '') {
 }
 
 function prioritizeEmbedCanais(options) {
+  const isEmbedCanais = (option) => /\b(?:embed|emb)\s*canais\b/i.test(String(option?.label || ''));
   return [...options].sort((a, b) => {
-    const aRank = /emb\s*canais/i.test(String(a?.label || '')) ? 0 : 1;
-    const bRank = /emb\s*canais/i.test(String(b?.label || '')) ? 0 : 1;
+    const aRank = isEmbedCanais(a) ? 0 : 1;
+    const bRank = isEmbedCanais(b) ? 0 : 1;
     return aRank - bRank;
   });
 }
@@ -8388,6 +8389,7 @@ module.exports._test = {
     providerCatalog: () => [...PROVIDER_SOURCES.keys()],
     providerResolver: ProviderResolver._test,
     liveTv: LiveTv._test,
+    prioritizeEmbedCanais,
     providerPositionLanguage,
     normalizeMgebLanguage,
     normalizeMgebQuality,
