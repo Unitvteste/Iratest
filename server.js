@@ -20,7 +20,9 @@ const { fetch: undiciFetch, Agent } = require('undici');
 const { firstNonEmptySequential } = require('./provedor/catalog-sequence');
 const PROVIDERS_API_BASE = String(CONFIG.PROVIDERS_API_BASE || '').replace(/\/$/, '');
 const XTREAM_API_BASE = String(CONFIG.XTREAM_API_BASE || '').replace(/\/$/, '');
-const CATALOG_XTREAM_SOURCE_IDS = Object.freeze(['claxys', 'cerejadoce', 'clbtw']);
+const CATALOG_XTREAM_SOURCE_IDS = Object.freeze(Array.isArray(CONFIG.XTREAM_CATALOG_PRIORITY)
+  ? [...new Set(CONFIG.XTREAM_CATALOG_PRIORITY.map((id) => String(id).trim().toLowerCase()).filter(Boolean))]
+  : ['clbtw']);
 let premiumPuppeteer = null;
 try { premiumPuppeteer = require('puppeteer-core'); } catch { /* dependência opcional em ambientes sem Chromium */ }
 
@@ -2086,7 +2088,7 @@ const PORT = Number(process.env.PORT || CONFIG.PORT || 7000);
 const SMART_CMS_FALLBACK_M3U_URL = CONFIG.SMART_CMS_FALLBACK_M3U_URL || '';
 const LOCAL_PLAYLIST = false;
 const CONFIGURED_M3U_SOURCES = Array.isArray(CONFIG.M3U_SOURCES)
-  ? CONFIG.M3U_SOURCES.filter((source) => source && source.url).map((source) => ({
+  ? CONFIG.M3U_SOURCES.filter((source) => source && source.url && source.enabled !== false).map((source) => ({
     ...source, id: String(source.id || source.name || 'm3u-source'), name: String(source.name || source.id || 'M3U'),
     timeoutMs: Number(source.timeoutMs) > 0 ? Number(source.timeoutMs) : undefined
   }))
@@ -3539,14 +3541,16 @@ function hostedApiSignal(parentSignal, timeoutMs) {
 
 async function searchHostedProviders({ tmdbId, mediaType, season, episode, providerIds, signal, timeoutMs }) {
   const ids = [...new Set((Array.isArray(providerIds) ? providerIds : []).map((id) => String(id).toLowerCase()).filter(Boolean))];
-  if (!ids.length || signal?.aborted) return [];
+  if (!ids.length || signal?.aborted) return { streams: [], requestedBatches: 0, successfulBatches: 0, failedBatches: [] };
   // A API hospedada retorna os resultados agrupados em `results[].streams`.
   // Todos os lotes são disparados em paralelo para reunir todos os provedores
   // dentro do prazo global, sem parar no primeiro player encontrado.
   const batches = [];
   for (let index = 0; index < ids.length; index += 2) batches.push(ids.slice(index, index + 2));
-  const batchStreams = await Promise.all(batches.map(async (batch) => {
+  const startedAt = Date.now();
+  const batchResults = await Promise.all(batches.map(async (batch, index) => {
     const request = hostedApiSignal(signal, timeoutMs);
+    const batchStartedAt = Date.now();
     try {
       const response = await undiciFetch(`${PROVIDERS_API_BASE}/api/v1/search`, {
         method: 'POST',
@@ -3554,18 +3558,40 @@ async function searchHostedProviders({ tmdbId, mediaType, season, episode, provi
         body: JSON.stringify({ tmdbId, mediaType, season, episode, providerIds: batch }),
         signal: request.signal
       });
-      if (!response.ok) throw new Error(`Providers API HTTP ${response.status}`);
-      const payload = await response.json();
-      return [
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        const error = new Error(`Providers API HTTP ${response.status}${payload?.error ? `: ${String(payload.error).slice(0, 140)}` : ''}`);
+        error.statusCode = response.status;
+        error.failedSources = Array.isArray(payload?.failedSources) ? payload.failedSources : [];
+        error.failedSourceDetails = Array.isArray(payload?.failedSourceDetails) ? payload.failedSourceDetails : [];
+        throw error;
+      }
+      const streams = [
         ...(Array.isArray(payload?.results) ? payload.results.flatMap((result) => Array.isArray(result?.streams) ? result.streams : []) : []),
         ...(Array.isArray(payload?.streams) ? payload.streams : [])
       ];
+      return {
+        batch, streams, elapsedMs: Date.now() - batchStartedAt,
+        failedSources: Array.isArray(payload?.failedSources) ? payload.failedSources : [],
+        failedSourceDetails: Array.isArray(payload?.failedSourceDetails) ? payload.failedSourceDetails : [],
+        partial: Boolean(payload?.partial)
+      };
     } catch (error) {
-      sourceLog('hosted-provider-batch-error', { providers: batch, message: String(error?.message || error).slice(0, 160) });
-      return [];
+      const failure = {
+        batch: index + 1,
+        providers: batch,
+        statusCode: Number(error?.statusCode) || undefined,
+        timeout: isAbortOrTimeoutError(error),
+        elapsedMs: Date.now() - batchStartedAt,
+        message: String(error?.message || error).slice(0, 160),
+        failedSources: Array.isArray(error?.failedSources) ? error.failedSources : [],
+        failedSourceDetails: Array.isArray(error?.failedSourceDetails) ? error.failedSourceDetails : []
+      };
+      sourceLog('hosted-provider-api-batch-error', failure);
+      return { batch, streams: [], elapsedMs: failure.elapsedMs, error: failure };
     } finally { request.close(); }
   }));
-  const streams = batchStreams.flatMap((items) => items).map((stream) => {
+  const streams = batchResults.flatMap((result) => result.streams).map((stream) => {
     const rawUrl = String(stream?.url || stream?.externalUrl || '').trim();
     if (!/^https?:\/\//i.test(rawUrl)) return null;
     const provider = String(stream?.provider || stream?.sourceName || 'Provider');
@@ -3578,7 +3604,16 @@ async function searchHostedProviders({ tmdbId, mediaType, season, episode, provi
       ...(Object.keys(headers).length ? { behaviorHints: { proxyHeaders: { request: headers } } } : {})
     }, provider.toLowerCase().replace(/\s+/g, '-'));
   }).filter(Boolean);
-  return [...new Map(streams.map((stream) => [stream.url, stream])).values()];
+  return {
+    streams: [...new Map(streams.map((stream) => [stream.url, stream])).values()],
+    requestedBatches: batches.length,
+    successfulBatches: batchResults.filter((result) => !result.error).length,
+    failedBatches: batchResults.filter((result) => result.error).map((result) => result.error),
+    failedSources: batchResults.flatMap((result) => result.failedSources || []),
+    failedSourceDetails: batchResults.flatMap((result) => result.failedSourceDetails || []),
+    partial: batchResults.some((result) => result.partial),
+    elapsedMs: Date.now() - startedAt
+  };
 }
 
 async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, signal = null, budgetMs = IMDB_STREAM_TIMEOUT_MS, testOptions = {}) {
@@ -3595,36 +3630,95 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
     return cached.streams;
   }
 
-  if (PROVIDERS_API_BASE && testOptions.useHostedApi === true) {
+  let hostedFallbackReason = '';
+  let hostedRemoteStreams = [];
+  let localProviderTasks = null;
+  if (testOptions.useHostedApi === true) {
+    const hostedSearch = testOptions.hostedProviderSearch || searchHostedProviders;
     const priority = isAnimeMetadata(tmdbResult)
       ? ANIME_PROVIDER_SEARCH_PRIORITY_IDS
       : PROVIDER_SEARCH_PRIORITY_IDS;
-    const remoteStreams = await searchHostedProviders({
-      tmdbId,
-      mediaType: type === 'series' ? 'tv' : 'movie',
-      season: season || null,
-      episode: episode || null,
-      providerIds: priority,
-      signal,
-      timeoutMs: Math.min(25000, DIRECT_PROVIDER_API_TIMEOUT_MS, budgetMs)
-    }).catch((error) => {
-      sourceLog('hosted-provider-api-error', { id: imdb || tmdbId, message: String(error?.message || error).slice(0, 180) });
-      return [];
+    let hostedResult = null;
+    let hostedFailure = null;
+    const apiStartedAt = Date.now();
+    if (PROVIDERS_API_BASE) {
+      try {
+        hostedResult = await hostedSearch({
+          tmdbId,
+          mediaType: type === 'series' ? 'tv' : 'movie',
+          season: season || null,
+          episode: episode || null,
+          providerIds: priority,
+          signal,
+          timeoutMs: Math.min(25000, DIRECT_PROVIDER_API_TIMEOUT_MS, budgetMs)
+        });
+      } catch (error) {
+        hostedFailure = {
+          message: String(error?.message || error).slice(0, 180),
+          statusCode: Number(error?.statusCode) || undefined,
+          timeout: isAbortOrTimeoutError(error)
+        };
+      }
+    } else {
+      hostedFailure = { message: 'PROVIDERS_API_BASE não configurada', timeout: false };
+    }
+    const remoteStreams = Array.isArray(hostedResult?.streams) ? hostedResult.streams : [];
+    hostedRemoteStreams = remoteStreams;
+    const failedBatches = Array.isArray(hostedResult?.failedBatches) ? hostedResult.failedBatches : [];
+    const failedSources = Array.isArray(hostedResult?.failedSources) ? hostedResult.failedSources : [];
+    const failedSourceDetails = Array.isArray(hostedResult?.failedSourceDetails) ? hostedResult.failedSourceDetails : [];
+    const apiFailed = Boolean(hostedFailure) || failedBatches.length > 0 || Boolean(hostedResult?.partial) || failedSources.length > 0 || failedSourceDetails.length > 0;
+    sourceLog('hosted-provider-api-complete', {
+      id: imdb || tmdbId,
+      type,
+      anime: isAnimeMetadata(tmdbResult),
+      configured: Boolean(PROVIDERS_API_BASE),
+      elapsedMs: Number(hostedResult?.elapsedMs) || Date.now() - apiStartedAt,
+      requestedBatches: Number(hostedResult?.requestedBatches) || 0,
+      successfulBatches: Number(hostedResult?.successfulBatches) || 0,
+      failedBatches: failedBatches.length,
+      failures: failedBatches,
+      failedSources,
+      failedSourceDetails,
+      partial: Boolean(hostedResult?.partial),
+      streams: remoteStreams.length,
+      ...(hostedFailure ? { error: hostedFailure } : {})
     });
-    if (remoteStreams.length) {
+    if (remoteStreams.length && !apiFailed) {
       if (!signal?.aborted && !testOptions.bypassCache) DIRECT_PROVIDER_STREAM_CACHE.set(cacheKey, {
         streams: remoteStreams, expiresAt: Date.now() + 30_000
       });
-      sourceLog('hosted-provider-api-result', {
-        id: imdb || tmdbId, type, anime: isAnimeMetadata(tmdbResult), streams: remoteStreams.length
-      });
       return testOptions.returnOutcome ? { streams: remoteStreams, outcomes: [], elapsedMs: 0 } : remoteStreams;
     }
+    if (!apiFailed) {
+      sourceLog('hosted-provider-api-empty-no-local-fallback', {
+        id: imdb || tmdbId, type, reason: 'API respondeu sem streams; fontes locais não consultadas'
+      });
+      return testOptions.returnOutcome ? { streams: [], outcomes: [], elapsedMs: Date.now() - apiStartedAt } : [];
+    }
+    hostedFallbackReason = hostedFailure ? 'api-request-failed' : 'api-reported-source-failures';
+    localProviderTasks = Array.isArray(testOptions.sourceTasks)
+      ? testOptions.sourceTasks
+      : buildProviderSourceTasks({ type, imdbId, tmdbResult, idMatch });
+    sourceLog('local-provider-fallback-start', {
+      id: imdb || tmdbId,
+      type,
+      reason: hostedFallbackReason,
+      error: hostedFailure || undefined,
+      failedBatches: failedBatches.length,
+      failedProviders: [...new Set([
+        ...failedBatches.flatMap((failure) => failure.providers || []),
+        ...failedSources.map((source) => String(typeof source === 'string' ? source : source?.id || source?.sourceId || 'unknown'))
+      ])],
+      failedSourceDetails,
+      localSourcesAvailable: localProviderTasks.length,
+      localSourceIds: localProviderTasks.map((source) => String(source.id || source.sourceName || source.providerId || 'unknown'))
+    });
   }
 
-  const tasks = Array.isArray(testOptions.sourceTasks)
+  const tasks = localProviderTasks || (Array.isArray(testOptions.sourceTasks)
     ? testOptions.sourceTasks
-    : buildProviderSourceTasks({ type, imdbId, tmdbResult, idMatch });
+    : buildProviderSourceTasks({ type, imdbId, tmdbResult, idMatch }));
   const queueRunner = testOptions.parallel ? runSourceQueueParallel : runSourceQueueSerial;
   const result = await queueRunner(
     tasks,
@@ -3660,11 +3754,15 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
       })
     : [];
   const allOutcomes = [...result.outcomes, ...deferredOutcomes];
+  const streams = [...new Map([
+    ...hostedRemoteStreams,
+    ...result.streams
+  ].map((stream) => [stream?.url || `${stream?.sourceName || ''}:${stream?.title || ''}`, stream])).values()];
   const summary = {
     id: imdb || tmdbId, type,
     sourcesAvailable: Number(testOptions.sourcesAvailable) || (tasks.length + deferredOutcomes.length),
     sourcesStarted: allOutcomes.filter((item) => !['not_started', 'skipped-priority'].includes(item.status)).length,
-    streams: result.streams.length,
+    streams: streams.length,
     elapsedMs: result.elapsedMs,
     sourceElapsedMs: result.sourceElapsedMs,
     stopReason: result.stopReason,
@@ -3673,7 +3771,16 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
     sources: allOutcomes
   };
   if (!testOptions.suppressSummary) sourceLog('provider-search-complete', summary);
-  const streams = result.streams;
+  if (hostedFallbackReason) sourceLog('local-provider-fallback-complete', {
+    id: imdb || tmdbId,
+    type,
+    reason: hostedFallbackReason,
+    sourcesAvailable: summary.sourcesAvailable,
+    sourcesStarted: summary.sourcesStarted,
+    streams: streams.length,
+    elapsedMs: result.elapsedMs,
+    stopReason: result.stopReason
+  });
   if (!signal?.aborted && !testOptions.bypassCache) DIRECT_PROVIDER_STREAM_CACHE.set(cacheKey, {
     streams,
     expiresAt: Date.now() + (streams.length ? 30_000 : 3_000)
@@ -4337,6 +4444,7 @@ async function xtreamCatalog(type, extra = {}, sourceOverride = null) {
     const url = new URL(`${XTREAM_API_BASE}/api/v1/catalog/${kind}`);
     url.searchParams.set('limit', String(Math.min(500, catalogLimitFor(extra))));
     if (extra.search) url.searchParams.set('search', String(extra.search));
+    if (extra.genre) url.searchParams.set('categoryName', String(extra.genre));
     const requestedSourceId = String(hostedSourceOverride?.sourceId || '').trim();
     if (requestedSourceId) url.searchParams.set('sourceId', requestedSourceId);
     // O catálogo hospedado recebe sourceId para não agregar várias IPTV na mesma chamada.
@@ -4371,7 +4479,8 @@ async function xtreamCatalog(type, extra = {}, sourceOverride = null) {
         : undefined
     })).filter((item) => {
       const text = normalizeMatch(`${item.name || ''} ${item.category_name || ''} ${item.categoryName || ''}`);
-      return (!requestedSearch || text.includes(requestedSearch)) && (!requestedGenre || text.includes(requestedGenre));
+      const category = item.category_name || item.categoryName || '';
+      return (!requestedSearch || text.includes(requestedSearch)) && (!requestedGenre || xtreamCategoryMatches(category, requestedGenre) || text.includes(requestedGenre));
     }).filter((item) => item.stream_id || item.series_id);
     for (const item of items) {
       if (type === 'movie') xtreamMovieCache.set(xtreamMediaCacheKey(remoteSource, item.stream_id), item);
@@ -4414,11 +4523,11 @@ async function xtreamCatalog(type, extra = {}, sourceOverride = null) {
   const query = normalizeMatch(extra.search || '');
   const genre = normalizeMatch(extra.genre || '');
   const matchingCategories = genre
-    ? new Set(categories.filter((item) => normalizeMatch(item.category_name || '').includes(genre) || genre.includes(normalizeMatch(item.category_name || ''))).map((item) => String(item.category_id)))
+    ? new Set(categories.filter((item) => xtreamCategoryMatches(item.category_name || '', genre)).map((item) => String(item.category_id)))
     : null;
   items = items.filter((item) => {
     const text = normalizeMatch(`${item.name || ''} ${item.category_name || ''}`);
-    const genreMatches = !genre || matchingCategories?.has(String(item.category_id)) || text.includes(genre);
+    const genreMatches = !genre || matchingCategories?.has(String(item.category_id)) || xtreamCategoryMatches(item.category_name || '', genre) || text.includes(genre);
     return (!query || text.includes(query)) && genreMatches;
   });
   if (type === 'tv' && source.id === 'primary') xtreamLiveItems = items;
@@ -4859,6 +4968,19 @@ function normalizeMatch(value = '') {
     .trim();
 }
 
+function xtreamCategoryMatches(categoryValue = '', requestedValue = '') {
+  const category = normalizeMatch(categoryValue);
+  const requested = normalizeMatch(requestedValue);
+  if (!requested) return true;
+  if (!category) return false;
+  if (category.includes(requested) || requested.includes(category)) return true;
+  const aliases = {
+    anime: ['animes', 'animacao', 'animacoes'],
+    dorama: ['doramas', 'kdrama', 'kdramas', 'drama asiatico', 'dramas asiaticos']
+  };
+  return (aliases[requested] || []).some((alias) => category.includes(alias));
+}
+
 async function tmdbSearch(query, type) {
   if (!TMDB_API_KEY || !query) return [];
 
@@ -5134,6 +5256,7 @@ async function findM3uEntryForImdbId(type, id) {
 
 async function searchHostedXtream(type, id, result, idMatch, signal, timeoutMs) {
   if (!XTREAM_API_BASE || isAnimeMetadata(result)) return [];
+  const startedAt = Date.now();
   const request = hostedApiSignal(signal, timeoutMs);
   try {
     const response = await undiciFetch(`${XTREAM_API_BASE}/api/v1/streams/search`, {
@@ -5149,9 +5272,15 @@ async function searchHostedXtream(type, id, result, idMatch, signal, timeoutMs) 
       }),
       signal: request.signal
     });
-    if (!response.ok) throw new Error(`Xtream API HTTP ${response.status}`);
-    const payload = await response.json();
-    return (Array.isArray(payload?.streams) ? payload.streams : []).map((item) => {
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      const error = new Error(`Xtream API HTTP ${response.status}${payload?.error ? `: ${String(payload.error).slice(0, 140)}` : ''}`);
+      error.statusCode = response.status;
+      error.failedSources = Array.isArray(payload?.failedSources) ? payload.failedSources : [];
+      error.failedSourceDetails = Array.isArray(payload?.failedSourceDetails) ? payload.failedSourceDetails : [];
+      throw error;
+    }
+    const streams = (Array.isArray(payload?.streams) ? payload.streams : []).map((item) => {
       const playback = String(item?.playbackPath || '').trim();
       if (!playback) return null;
       const url = /^https?:\/\//i.test(playback) ? playback : `${XTREAM_API_BASE}${playback.startsWith('/') ? '' : '/'}${playback}`;
@@ -5166,18 +5295,82 @@ async function searchHostedXtream(type, id, result, idMatch, signal, timeoutMs) 
         episode: item.season != null && item.episode != null ? { season: Number(item.season), episode: Number(item.episode) } : undefined
       };
     }).filter(Boolean);
+    return {
+      streams,
+      statusCode: response.status,
+      failedSources: Array.isArray(payload?.failedSources) ? payload.failedSources : [],
+      failedSourceDetails: Array.isArray(payload?.failedSourceDetails) ? payload.failedSourceDetails : [],
+      partial: Boolean(payload?.partial),
+      elapsedMs: Date.now() - startedAt
+    };
   } finally { request.close(); }
 }
 
 async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM_TIMEOUT_MS, testOptions = {}) {
   if (!result || !['movie', 'series'].includes(type)) return [];
-  if (XTREAM_API_BASE && testOptions.useHostedApi === true && !isAnimeMetadata(result)) {
-    const remote = await searchHostedXtream(type, id, result, String(id).match(/^tt\d+(?::(\d+):(\d+))?$/i), testOptions.signal || null, Math.min(35000, budgetMs))
-      .catch((error) => {
-        sourceLog('hosted-xtream-api-error', { id, message: String(error?.message || error).slice(0, 180) });
-        return [];
+  let hostedFallbackReason = '';
+  let hostedRemoteStreams = [];
+  if (testOptions.useHostedApi === true) {
+    const apiStartedAt = Date.now();
+    const hostedSearch = testOptions.hostedXtreamSearch || searchHostedXtream;
+    if (isAnimeMetadata(result)) {
+      sourceLog('hosted-xtream-api-skipped', {
+        id: String(id), reason: 'API hospedada não pesquisa anime; fallback local desativado nesta execução'
       });
-    if (remote.length) return testOptions.returnOutcome ? { streams: remote, outcomes: [], elapsedMs: 0 } : remote;
+      return testOptions.returnOutcome ? { streams: [], outcomes: [], elapsedMs: Date.now() - apiStartedAt } : [];
+    }
+    let hostedResult = null;
+    let hostedFailure = null;
+    if (XTREAM_API_BASE) {
+      try {
+        hostedResult = await hostedSearch(type, id, result, String(id).match(/^tt\d+(?::(\d+):(\d+))?$/i), testOptions.signal || null, Math.min(35000, budgetMs));
+      } catch (error) {
+        hostedFailure = {
+          message: String(error?.message || error).slice(0, 180),
+          statusCode: Number(error?.statusCode) || undefined,
+          timeout: isAbortOrTimeoutError(error),
+          failedSources: Array.isArray(error?.failedSources) ? error.failedSources : [],
+          failedSourceDetails: Array.isArray(error?.failedSourceDetails) ? error.failedSourceDetails : []
+        };
+      }
+    } else {
+      hostedFailure = { message: 'XTREAM_API_BASE não configurada', timeout: false };
+    }
+    const remote = Array.isArray(hostedResult?.streams) ? hostedResult.streams : [];
+    hostedRemoteStreams = remote;
+    const failedSources = Array.isArray(hostedResult?.failedSources) ? hostedResult.failedSources : [];
+    const failedSourceDetails = Array.isArray(hostedResult?.failedSourceDetails) ? hostedResult.failedSourceDetails : [];
+    const apiFailed = Boolean(hostedFailure) || Boolean(hostedResult?.partial) || failedSources.length > 0 || failedSourceDetails.length > 0;
+    sourceLog('hosted-xtream-api-complete', {
+      id: String(id), type,
+      configured: Boolean(XTREAM_API_BASE),
+      statusCode: Number(hostedResult?.statusCode) || hostedFailure?.statusCode || undefined,
+      elapsedMs: Number(hostedResult?.elapsedMs) || Date.now() - apiStartedAt,
+      streams: remote.length,
+      partial: Boolean(hostedResult?.partial),
+      failedSources,
+      failedSourceDetails,
+      ...(hostedFailure ? { error: hostedFailure } : {})
+    });
+    if (remote.length && !apiFailed) return testOptions.returnOutcome ? { streams: remote, outcomes: [], elapsedMs: Number(hostedResult?.elapsedMs) || Date.now() - apiStartedAt } : remote;
+    if (!apiFailed) {
+      sourceLog('hosted-xtream-api-empty-no-local-fallback', {
+        id: String(id), type, reason: 'API respondeu sem streams e sem fontes com falha; fontes locais não consultadas'
+      });
+      return testOptions.returnOutcome ? { streams: [], outcomes: [], elapsedMs: Date.now() - apiStartedAt } : [];
+    }
+    const sourcesForFallback = testOptions.sources || XTREAM_SOURCES;
+    hostedFallbackReason = hostedFailure ? 'api-request-failed' : 'api-reported-source-failures';
+    sourceLog('local-xtream-fallback-start', {
+      id: String(id),
+      type,
+      reason: hostedFallbackReason,
+      error: hostedFailure || undefined,
+      failedSources: hostedFailure?.failedSources?.length ? hostedFailure.failedSources : failedSources,
+      failedSourceDetails: hostedFailure?.failedSourceDetails?.length ? hostedFailure.failedSourceDetails : failedSourceDetails,
+      localSourcesAvailable: sourcesForFallback.length,
+      localSourceIds: sourcesForFallback.map((source) => String(source.id || source.sourceName || 'unknown'))
+    });
   }
   const sourcesToSearch = xtreamSearchOrder(testOptions.sources || XTREAM_SOURCES);
   const requestSource = testOptions.requestSource || xtreamSourceRequest;
@@ -5291,12 +5484,16 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
       })
     : [];
   const allOutcomes = [...search.outcomes, ...deferredOutcomes];
+  const streams = [...new Map([
+    ...hostedRemoteStreams,
+    ...search.streams
+  ].map((stream) => [stream?.url || `${stream?.sourceName || ''}:${stream?.title || ''}`, stream])).values()];
   const summary = {
     id: String(id), type,
     sourcesAvailable: Number(testOptions.sourcesAvailable) || (sourcesToSearch.length + deferredOutcomes.length),
     sourcesStarted: allOutcomes.filter((item) => !['not_started', 'skipped-priority'].includes(item.status)).length,
     sourcesWithMedia: search.outcomes.filter((item) => item.status === 'ok').length,
-    streams: search.streams.length,
+    streams: streams.length,
     elapsedMs: search.elapsedMs,
     sourceElapsedMs: search.sourceElapsedMs,
     stopReason: search.stopReason,
@@ -5305,7 +5502,19 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
     sources: allOutcomes
   };
   if (!testOptions.suppressSummary) sourceLog('xtream-search-complete', summary);
-  return testOptions.returnOutcome ? { ...search, streams: search.streams, summary } : search.streams;
+  if (hostedFallbackReason) sourceLog('local-xtream-fallback-complete', {
+    id: String(id),
+    type,
+    reason: hostedFallbackReason,
+    sourcesAvailable: summary.sourcesAvailable,
+    sourcesStarted: summary.sourcesStarted,
+    sourcesWithMedia: summary.sourcesWithMedia,
+    streams: streams.length,
+    localStreams: search.streams.length,
+    elapsedMs: search.elapsedMs,
+    stopReason: search.stopReason
+  });
+  return testOptions.returnOutcome ? { ...search, streams, summary } : streams;
 }
 async function findXtreamEntriesByTitle(type, title) {
   if (!['movie', 'tv'].includes(type)) return [];
@@ -8504,6 +8713,8 @@ module.exports = app;
 module.exports.app = app;
 module.exports._test = {
     PROVIDERS,
+    catalogXtreamSourceIds: [...CATALOG_XTREAM_SOURCE_IDS],
+    xtreamCategoryMatches,
     formatSourceStatusSummary,
     createBackpressuredWriter,
     downloadM3U,
@@ -8590,6 +8801,7 @@ module.exports._test = {
     xtreamCatalog,
     xtreamEntry,
     xtreamMultiSourceTvCatalog,
+    activeM3USourceIds: M3U_SOURCES.map((source) => source.id),
     M3U_SOURCES,
     EPG_SOURCES,
     LiveTv,
