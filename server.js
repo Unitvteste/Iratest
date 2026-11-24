@@ -17,8 +17,10 @@ const { addonBuilder } = require('stremio-addon-sdk');
 const express = require('express');
 const getRouter = require('stremio-addon-sdk/src/getRouter');
 const { fetch: undiciFetch, Agent } = require('undici');
+const { firstNonEmptySequential } = require('./provedor/catalog-sequence');
 const PROVIDERS_API_BASE = String(CONFIG.PROVIDERS_API_BASE || '').replace(/\/$/, '');
 const XTREAM_API_BASE = String(CONFIG.XTREAM_API_BASE || '').replace(/\/$/, '');
+const CATALOG_XTREAM_SOURCE_IDS = Object.freeze(['claxys', 'cerejadoce', 'clbtw']);
 let premiumPuppeteer = null;
 try { premiumPuppeteer = require('puppeteer-core'); } catch { /* dependência opcional em ambientes sem Chromium */ }
 
@@ -3954,9 +3956,16 @@ function xtreamGroup(item, fallback = 'Sem categoria') {
   return item.category_name || item.category_id || fallback;
 }
 
+function xtreamMediaCacheKey(source, mediaId) {
+  const sourceId = String(source?.id || 'primary');
+  return sourceId === 'primary' ? String(mediaId) : `${sourceId}:${mediaId}`;
+}
+
 function xtreamMovieMeta(item) {
-  const id = `xtream-movie-${item.stream_id}`;
-  xtreamMovieCache.set(String(item.stream_id), item);
+  const sourceId = String(item.xtreamSource?.id || 'primary');
+  const sourceSuffix = sourceId === 'primary' ? '' : `-source-${xtreamTvSourceSlug(sourceId)}`;
+  const id = `xtream-movie${sourceSuffix}-${item.stream_id}`;
+  xtreamMovieCache.set(xtreamMediaCacheKey(item.xtreamSource, item.stream_id), item);
   return {
     id,
     type: 'movie',
@@ -3971,8 +3980,10 @@ function xtreamMovieMeta(item) {
 }
 
 function xtreamSeriesMeta(item) {
-  const id = `xtream-series-${item.series_id}`;
-  xtreamSeriesCache.set(String(item.series_id), item);
+  const sourceId = String(item.xtreamSource?.id || 'primary');
+  const sourceSuffix = sourceId === 'primary' ? '' : `-source-${xtreamTvSourceSlug(sourceId)}`;
+  const id = `xtream-series${sourceSuffix}-${item.series_id}`;
+  xtreamSeriesCache.set(xtreamMediaCacheKey(item.xtreamSource, item.series_id), item);
   return {
     id,
     type: 'series',
@@ -4046,6 +4057,23 @@ function parseXtreamTvId(value) {
 
 function findXtreamTvSource(sourceSlug) {
   return XTREAM_SOURCES.find((source) => xtreamTvSourceSlug(source.id) === String(sourceSlug || '').toLowerCase()) || null;
+}
+
+function parseXtreamMediaId(kind, value) {
+  const match = String(value || '').match(new RegExp(`^xtream-${kind}-(?:source-(.+)-)?(\\d+)$`, 'i'));
+  if (!match) return null;
+  return { sourceSlug: String(match[1] || 'primary').toLowerCase(), mediaId: match[2] };
+}
+
+function parseXtreamEpisodeId(value) {
+  const match = String(value || '').match(/^xtream-episode-(?:source-(.+)-)?(\d+)-(\d+)-(\d+)$/i);
+  if (!match) return null;
+  return {
+    sourceSlug: String(match[1] || 'primary').toLowerCase(),
+    seriesId: match[2],
+    season: match[3],
+    episode: match[4]
+  };
 }
 
 function xtreamTvCacheKey(source, streamId) {
@@ -4176,40 +4204,74 @@ async function xtreamMultiSourceTvCatalog(extra = {}, sourceList = XTREAM_SOURCE
 async function xtreamCatalog(type, extra = {}, sourceOverride = null) {
   const action = type === 'movie' ? 'get_vod_streams' : type === 'series' ? 'get_series' : 'get_live_streams';
   const categoryAction = type === 'movie' ? 'get_vod_categories' : type === 'series' ? 'get_series_categories' : 'get_live_categories';
-  const source = sourceOverride || XTREAM_SOURCES.find((item) => item.id === 'primary');
+  const hostedSourceOverride = sourceOverride?.mode === 'hosted' ? sourceOverride : null;
+  const source = hostedSourceOverride ? null : sourceOverride || XTREAM_SOURCES.find((item) => item.id === 'primary');
   const request = (requestAction, timeoutMs) => source?.id === 'primary'
     ? xtreamRequest(requestAction, {}, timeoutMs)
     : xtreamSourceRequest({ ...source, timeoutMs }, requestAction);
-  if (!source && XTREAM_API_BASE) {
+  if ((hostedSourceOverride || !source) && XTREAM_API_BASE) {
     const kind = type === 'movie' ? 'vod' : type === 'series' ? 'series' : 'live';
     const url = new URL(`${XTREAM_API_BASE}/api/v1/catalog/${kind}`);
     url.searchParams.set('limit', String(Math.min(500, catalogLimitFor(extra))));
     if (extra.search) url.searchParams.set('search', String(extra.search));
-    // A API hospedada agrega várias fontes Xtream e pode levar mais que o timeout
-    // individual das fontes. Este caminho continua exclusivo para filmes/séries;
-    // não há fallback para download de playlists M3U.
-    const payload = await fetchJsonWithTimeout(url, Math.max(60000, XTREAM_TIMEOUT_MS), 'Xtream API catálogo');
+    const requestedSourceId = String(hostedSourceOverride?.sourceId || '').trim();
+    if (requestedSourceId) url.searchParams.set('sourceId', requestedSourceId);
+    // O catálogo hospedado recebe sourceId para não agregar várias IPTV na mesma chamada.
+    const hostedTimeoutMs = hostedSourceOverride ? Math.max(30000, XTREAM_TIMEOUT_MS) : Math.max(60000, XTREAM_TIMEOUT_MS);
+    const payload = await fetchJsonWithTimeout(url, hostedTimeoutMs, 'Xtream API catálogo');
     const remoteItems = Array.isArray(payload?.items) ? payload.items : [];
-    const remoteSource = { id: 'hosted', sourceName: 'Xtream hospedado', name: 'Xtream hospedado', base: XTREAM_API_BASE };
+    const localSource = requestedSourceId ? XTREAM_SOURCES.find((item) => item.id === requestedSourceId) : null;
+    const remoteSourceName = remoteItems.find((item) => item?.sourceName || item?.source_name)?.sourceName ||
+      remoteItems.find((item) => item?.source_name)?.source_name || localSource?.sourceName || localSource?.name || 'Xtream hospedado';
+    const remoteSource = {
+      ...(localSource || {}),
+      id: requestedSourceId || 'hosted',
+      sourceName: remoteSourceName,
+      name: localSource?.name || remoteSourceName,
+      base: localSource?.base || XTREAM_API_BASE
+    };
+    const requestedSearch = normalizeMatch(extra.search || '');
+    const requestedGenre = normalizeMatch(extra.genre || '');
     const items = remoteItems.map((item) => ({
       ...item,
       stream_id: item.stream_id || (type === 'movie' || type === 'tv' ? item.id : undefined),
       series_id: item.series_id || (type === 'series' ? item.id : undefined),
       stream_icon: item.image || item.stream_icon,
       cover: item.image || item.cover,
+      category_name: item.categoryName || item.category_name || '',
       releaseDate: item.year || item.releaseDate,
       xtreamSource: remoteSource,
-      hostedPlaybackUrl: item.playbackPath ? `${XTREAM_API_BASE}${String(item.playbackPath).startsWith('/') ? '' : '/'}${item.playbackPath}` : undefined
-    })).filter((item) => item.stream_id || item.series_id);
+      hostedPlaybackUrl: item.playbackPath
+        ? (/^https?:\/\//i.test(String(item.playbackPath))
+            ? String(item.playbackPath)
+            : `${XTREAM_API_BASE}${String(item.playbackPath).startsWith('/') ? '' : '/'}${item.playbackPath}`)
+        : undefined
+    })).filter((item) => {
+      const text = normalizeMatch(`${item.name || ''} ${item.category_name || ''} ${item.categoryName || ''}`);
+      return (!requestedSearch || text.includes(requestedSearch)) && (!requestedGenre || text.includes(requestedGenre));
+    }).filter((item) => item.stream_id || item.series_id);
     for (const item of items) {
-      if (type === 'movie') xtreamMovieCache.set(String(item.stream_id), item);
-      else if (type === 'series') xtreamSeriesCache.set(String(item.series_id), item);
+      if (type === 'movie') xtreamMovieCache.set(xtreamMediaCacheKey(remoteSource, item.stream_id), item);
+      else if (type === 'series') xtreamSeriesCache.set(xtreamMediaCacheKey(remoteSource, item.series_id), item);
       else xtreamTvCache.set(xtreamTvCacheKey(remoteSource, item.stream_id), item);
     }
-    return items.slice(0, catalogLimitFor(extra)).map((item) => type === 'movie' ? xtreamMovieMeta(item) : type === 'series' ? xtreamSeriesMeta(item) : {
-      id: `xtream-tv-source-hosted-${item.stream_id}`, type: 'tv', name: item.name || 'Canal',
-      poster: item.image || item.stream_icon, posterShape: 'landscape', genres: [item.categoryName || 'Outros']
+    if (type === 'tv' && items.length) await ensureEpg().catch((error) => { sourceLog('epg-catalog-error', { message: error.message }); return null; });
+    const metas = items.slice(0, catalogLimitFor(extra)).map((item) => {
+      if (type === 'movie') return xtreamMovieMeta(item);
+      if (type === 'series') return xtreamSeriesMeta(item);
+      const programme = epgForEntry({ title: item.name, tvgId: item.epg_channel_id || item.epg_channel });
+      return {
+        id: `xtream-tv-source-${xtreamTvSourceSlug(remoteSource.id)}-${item.stream_id}`,
+        type: 'tv',
+        name: item.name || 'Canal',
+        poster: item.image || item.stream_icon || item.logo || item.channel_logo,
+        posterShape: 'landscape',
+        description: channelDescription(item.name, programme ? [programme] : []),
+        genres: [item.categoryName || item.category_name || xtreamGroup(item)]
+      };
     });
+    sourceLog('catalog', { source: remoteSource.sourceName || remoteSource.id, type, count: metas.length, phase: 'render' });
+    return metas;
   }
   if (!source) throw new Error('Nenhuma fonte Xtream disponível');
   let [items, categories] = await Promise.all([
@@ -4272,22 +4334,76 @@ async function xtreamCatalog(type, extra = {}, sourceOverride = null) {
   return metas;
 }
 
-async function xtreamMovieInfo(id) {
-  const cached = xtreamMovieCache.get(String(id));
+async function catalogXtreamWithFallback(type, extra = {}) {
+  const safeFailure = (error) => {
+    const message = String(error?.message || '');
+    const status = message.match(/\bHTTP\s+(\d{3})\b/i)?.[1];
+    if (status) return `HTTP ${status}`;
+    if (/timeout|abort/i.test(message)) return 'timeout';
+    return 'request_failed';
+  };
+  const hosted = XTREAM_API_BASE
+    ? await firstNonEmptySequential(CATALOG_XTREAM_SOURCE_IDS, async (sourceId) => {
+        const metas = await xtreamCatalog(type, extra, { mode: 'hosted', sourceId });
+        sourceLog('catalog-xtream-source-result', { type, phase: 'render', source: sourceId, count: metas.length });
+        return metas;
+      }, {
+        stopOnError: true,
+        onError: (sourceId, error) => sourceLog('catalog-xtream-source-error', {
+          type, phase: 'render', source: sourceId, error: safeFailure(error)
+        })
+      })
+    : { sourceId: null, items: [] };
+  if (hosted.items.length) return { metas: hosted.items, sourceId: hosted.sourceId, phase: 'render' };
+
+  const local = XTREAM_ENABLED
+    ? await firstNonEmptySequential(CATALOG_XTREAM_SOURCE_IDS, async (sourceId) => {
+        const source = XTREAM_SOURCES.find((item) => item.id === sourceId);
+        if (!source) {
+          sourceLog('catalog-xtream-source-missing', { type, phase: 'local', source: sourceId });
+          return [];
+        }
+        const metas = await xtreamCatalog(type, extra, source);
+        sourceLog('catalog-xtream-source-result', { type, phase: 'local', source: sourceId, count: metas.length });
+        return metas;
+      }, {
+        onError: (sourceId, error) => sourceLog('catalog-xtream-source-error', {
+          type, phase: 'local', source: sourceId, error: safeFailure(error)
+        })
+      })
+    : { sourceId: null, items: [] };
+  if (local.items.length) return { metas: local.items, sourceId: local.sourceId, phase: 'local' };
+  return { metas: [], sourceId: null, phase: null };
+}
+
+async function xtreamMovieInfo(id, source = XTREAM_SOURCES.find((item) => item.id === 'primary')) {
+  const cacheKey = xtreamMediaCacheKey(source, id);
+  const cached = xtreamMovieCache.get(cacheKey);
   if (cached) return cached;
-  const info = await xtreamRequest('get_vod_info', { vod_id: id });
-  const item = { ...(info?.info || {}), ...(info?.movie_data || {}), stream_id: Number(id) };
-  xtreamMovieCache.set(String(id), item);
-  sourceLog('meta', { source: 'xtream', type: 'movie', id, poster: Boolean(item.stream_icon || item.cover) });
+  if (!source) throw new Error('Fonte Xtream do filme indisponível');
+  const info = source.id === 'primary'
+    ? await xtreamRequest('get_vod_info', { vod_id: id })
+    : await xtreamSourceRequest({ ...source, timeoutMs: XTREAM_TIMEOUT_MS }, 'get_vod_info', { vod_id: id });
+  const item = { ...(info?.info || {}), ...(info?.movie_data || {}), stream_id: Number(id), xtreamSource: source };
+  xtreamMovieCache.set(cacheKey, item);
+  sourceLog('meta', { source: source.sourceName || source.id, type: 'movie', poster: Boolean(item.stream_icon || item.cover) });
   return item;
 }
 
-async function xtreamSeriesInfo(id) {
-  if (xtreamSeriesCache.has(String(id)) && xtreamSeriesCache.get(String(id))?.episodes) return xtreamSeriesCache.get(String(id));
-  const info = await xtreamRequest('get_series_info', { series_id: id });
-  const item = { ...(info?.info || {}), series_id: Number(id), episodes: info?.episodes || {} };
-  xtreamSeriesCache.set(String(id), item);
-  sourceLog('meta', { source: 'xtream', type: 'series', id, poster: Boolean(item.cover || item.stream_icon), episodes: Object.values(item.episodes).flat().length });
+async function xtreamSeriesInfo(id, source = XTREAM_SOURCES.find((item) => item.id === 'primary')) {
+  const cacheKey = xtreamMediaCacheKey(source, id);
+  const cached = xtreamSeriesCache.get(cacheKey);
+  if (cached?.episodes && Object.values(cached.episodes).flat().length) return cached;
+  if (!source) throw new Error('Fonte Xtream da série indisponível');
+  const info = source.id === 'primary'
+    ? await xtreamRequest('get_series_info', { series_id: id })
+    : await xtreamSourceRequest({ ...source, timeoutMs: XTREAM_TIMEOUT_MS }, 'get_series_info', { series_id: id });
+  const item = {
+    ...(cached || {}), ...(info?.info || {}), series_id: Number(id),
+    episodes: info?.episodes || cached?.episodes || {}, xtreamSource: source
+  };
+  xtreamSeriesCache.set(cacheKey, item);
+  sourceLog('meta', { source: source.sourceName || source.id, type: 'series', poster: Boolean(item.cover || item.stream_icon), episodes: Object.values(item.episodes).flat().length });
   return item;
 }
 
@@ -6908,80 +7024,33 @@ builder.defineCatalogHandler(
         return await tmdbRankingCatalog(rankingType, id, extra);
       }
       if (LiveTv.handlesCatalog(id)) return await LiveTv.catalog(type, id, extra);
-      // A tela inicial não deve pedir o catálogo Xtream agregado inteiro. A API
-      // hospedada precisa consultar dezenas de fontes e pode retornar dezenas de
-      // milhares de itens. Use uma seleção curta do TMDB para navegação; Xtream
-      // e Providers são consultados depois, na resolução dos streams do título.
-      if ((id === 'm3u-movies' || id === 'm3u-series') && !String(extra.search || '').trim() && TMDB_API_KEY) {
-        const rankingType = id === 'm3u-series' ? 'series' : 'movie';
-        const rankingId = `iracema-ranking-${rankingType}-popular`;
-        const ranking = await tmdbRankingCatalog(rankingType, rankingId, extra);
-        sourceLog('catalog-fast-tmdb-ready', { type: rankingType, count: ranking.metas.length, streams: 'providers+xtream-priority-on-open' });
-        return ranking;
-      }
       const xtreamType = id === 'm3u-movies' ? 'movie' : id === 'm3u-series' ? 'series' : id === 'm3u-tv' ? 'tv' : type;
-      if (['movie', 'series', 'tv'].includes(xtreamType)) {
-        if (xtreamType !== 'tv' && (XTREAM_ENABLED || XTREAM_API_BASE)) {
-          try {
-            const metas = await xtreamCatalog(xtreamType, extra);
-            sourceLog('catalog-primary-xtream-ready', { type: xtreamType, source: XTREAM_ENABLED ? XTREAM_SOURCE_NAME : 'Xtream hospedado', count: metas.length });
-            return { metas };
-          } catch (xtreamPrimaryError) {
-            sourceLog('catalog-primary-xtream-error', { type: xtreamType, source: XTREAM_SOURCE_NAME, error: String(xtreamPrimaryError.message || '').slice(0, 120) });
-          }
+      if (xtreamType === 'tv') {
+        const outcome = await catalogXtreamWithFallback(xtreamType, extra);
+        if (outcome.metas.length) {
+          sourceLog('catalog-primary-xtream-ready', {
+            type: xtreamType,
+            source: outcome.sourceId,
+            mode: outcome.phase,
+            count: outcome.metas.length
+          });
+          return { metas: outcome.metas };
         }
+        sourceLog('catalog-tv-empty-after-source-fallbacks', {
+          sources: CATALOG_XTREAM_SOURCE_IDS,
+          reason: 'Render e fallback local single-source sem resultados'
+        });
+        return { metas: [] };
       }
-      if (XTREAM_ENABLED && ['movie', 'series', 'tv'].includes(xtreamType)) {
-        try {
-          return { metas: await xtreamCatalog(xtreamType, extra) };
-        } catch (error) {
-          sourceLog('xtream-catalog-fallback', { type: xtreamType, from: 'CDN4K', error: String(error.message || '').slice(0, 120) });
-          if (xtreamType !== 'tv') {
-            // Ordem de contingência: CDN4K (primary) -> Smart CMS -> 5CE.
-            for (const fallbackId of ['cms-central', '5ce']) {
-              const fallbackSource = XTREAM_SOURCES.find((source) => source.id === fallbackId);
-              if (!fallbackSource) continue;
-              try {
-                const metas = await xtreamCatalog(xtreamType, extra, fallbackSource);
-                sourceLog('xtream-catalog-fallback-ready', {
-                  type: xtreamType,
-                  source: fallbackSource.sourceName || fallbackSource.id,
-                  mode: 'xtream',
-                  count: metas.length
-                });
-                return { metas };
-              } catch (fallbackError) {
-                sourceLog('xtream-catalog-fallback-error', {
-                  type: xtreamType,
-                  source: fallbackSource.sourceName || fallbackSource.id,
-                  mode: 'xtream',
-                  error: String(fallbackError.message || '').slice(0, 120)
-                });
-              }
-            }
-            // Só depois de todas as fontes Xtream falharem tentamos a M3U local.
-            sourceLog('xtream-catalog-empty-before-local-fallback', { type: xtreamType });
-          }
-          if (xtreamType === 'tv') {
-            // Ordem de contingência: CDN4K (primary) -> Smart CMS -> 5CE.
-            for (const fallbackId of ['cms-central', '5ce']) {
-              const fallbackSource = XTREAM_SOURCES.find((source) => source.id === fallbackId);
-              if (!fallbackSource) continue;
-              const metas = await xtreamMultiSourceTvCatalog(extra, [fallbackSource]);
-              sourceLog('xtream-catalog-fallback-result', {
-                type: 'tv',
-                source: fallbackSource.sourceName || fallbackSource.id,
-                mode: 'xtream-sequential',
-                count: metas.length
-              });
-              if (metas.length) return { metas };
-            }
-            sourceLog('xtream-tv-empty-before-local-fallback', { type: xtreamType });
-          }
-        }
-      }
-      if (xtreamType === 'tv' && XTREAM_ENABLED) {
-        sourceLog('catalog-tv-empty-after-source-fallbacks', { reason: 'all single sources unavailable' });
+      if (['movie', 'series'].includes(xtreamType) && (XTREAM_ENABLED || XTREAM_API_BASE)) {
+        const outcome = await catalogXtreamWithFallback(xtreamType, extra);
+        sourceLog('catalog-primary-xtream-ready', {
+          type: xtreamType,
+          source: outcome.sourceId,
+          mode: outcome.phase,
+          count: outcome.metas.length
+        });
+        if (outcome.metas.length) return { metas: outcome.metas };
       }
       if (id === 'm3u-movies' || id === 'm3u-series') {
         sourceLog('catalog-xtream-empty-no-m3u-fallback', {
@@ -7113,16 +7182,21 @@ builder.defineMetaHandler(
     if (String(id).startsWith(LiveTv.CHANNEL_PREFIX) || String(id).startsWith(LiveTv.EVENT_PREFIX) || String(id).startsWith(LiveTv.EMBEDTV_CHANNEL_PREFIX) || String(id).startsWith(LiveTv.EMBEDTV_EVENT_PREFIX)) {
       return { meta: await LiveTv.meta(type, id) };
     }
-    const movieMatch = String(id).match(/^xtream-movie-(\d+)$/);
-    if (XTREAM_ENABLED && movieMatch) {
-      const item = await xtreamMovieInfo(movieMatch[1]);
+    const movieMatch = parseXtreamMediaId('movie', id);
+    if ((XTREAM_ENABLED || XTREAM_API_BASE) && movieMatch) {
+      const source = findXtreamTvSource(movieMatch.sourceSlug);
+      if (!source) return { meta: null };
+      const item = await xtreamMovieInfo(movieMatch.mediaId, source);
       return { meta: await enrichMeta(item, xtreamMovieMeta(item)) };
     }
-    const seriesMatch = String(id).match(/^xtream-series-(\d+)$/);
-    if (XTREAM_ENABLED && seriesMatch) {
-      const item = await xtreamSeriesInfo(seriesMatch[1]);
+    const seriesMatch = parseXtreamMediaId('series', id);
+    if ((XTREAM_ENABLED || XTREAM_API_BASE) && seriesMatch) {
+      const source = findXtreamTvSource(seriesMatch.sourceSlug);
+      if (!source) return { meta: null };
+      const item = await xtreamSeriesInfo(seriesMatch.mediaId, source);
+      const sourceSuffix = source.id === 'primary' ? '' : `-source-${xtreamTvSourceSlug(source.id)}`;
       const episodes = Object.values(item.episodes || {}).flat().filter(Boolean).map((episode) => ({
-        id: `xtream-episode-${item.series_id}-${episode.season}-${episode.episode_num}`,
+        id: `xtream-episode${sourceSuffix}-${item.series_id}-${episode.season}-${episode.episode_num}`,
         title: episode.title || episode.name || `Episódio ${episode.episode_num}`,
         season: Number(episode.season || 1),
         episode: Number(episode.episode_num || 1),
@@ -7250,12 +7324,14 @@ builder.defineStreamHandler(
         null
       );
     }
-    const movieMatch = String(id).match(/^xtream-movie-(\d+)$/);
-    if (XTREAM_ENABLED && movieMatch) {
-      const movieId = movieMatch[1];
-      const item = await xtreamMovieInfo(movieId);
+    const movieMatch = parseXtreamMediaId('movie', id);
+    if ((XTREAM_ENABLED || XTREAM_API_BASE) && movieMatch) {
+      const movieId = movieMatch.mediaId;
+      const source = findXtreamTvSource(movieMatch.sourceSlug);
+      if (!source) return { streams: [] };
+      const item = await xtreamMovieInfo(movieId, source);
       const xtreamItem = xtreamEntry(
-        { ...item, stream_id: movieId },
+        { ...item, stream_id: movieId, xtreamSource: source },
         'movie',
         item.container_extension || 'mp4'
       );
@@ -7327,15 +7403,18 @@ builder.defineStreamHandler(
       sourceLog('stream-result', { source: 'xtream-click-fanout', type: 'tv', id, count: streams.length, providers: new Set(xtreamItems.map((item) => item.sourceName)).size, matchedName: selected?.name });
       return { streams };
     }
-    const episodeMatch = String(id).match(/^xtream-episode-(\d+)-(\d+)-(\d+)$/);
-    if (XTREAM_ENABLED && episodeMatch) {
-      const [, seriesIdValue, seasonValue, episodeValue] = episodeMatch;
-      const item = await xtreamSeriesInfo(seriesIdValue);
+    const episodeMatch = parseXtreamEpisodeId(id);
+    if ((XTREAM_ENABLED || XTREAM_API_BASE) && episodeMatch) {
+      const { sourceSlug, seriesId: seriesIdValue, season: seasonValue, episode: episodeValue } = episodeMatch;
+      const source = findXtreamTvSource(sourceSlug);
+      if (!source) return { streams: [] };
+      const item = await xtreamSeriesInfo(seriesIdValue, source);
       const episode = Object.values(item.episodes || {}).flat().find((x) => Number(x.season) === Number(seasonValue) && Number(x.episode_num) === Number(episodeValue));
       if (!episode) return { streams: [] };
       const episodeData = {
         ...episode,
         stream_id: episode.id,
+        xtreamSource: source,
         name: item.name || episode.title || episode.name || 'Série',
         displayName: `${item.name || 'Série'} S${String(Number(seasonValue)).padStart(2, '0')} E${String(Number(episodeValue)).padStart(2, '0')}`,
         episode: {
@@ -8283,6 +8362,10 @@ module.exports._test = {
     getMegaEmbedAdapterStreams,
     XTREAM_SOURCES,
     parseXtreamTvId,
+    parseXtreamMediaId,
+    parseXtreamEpisodeId,
+    xtreamMediaCacheKey,
+    xtreamTvSourceSlug,
     xtreamCatalog,
     xtreamEntry,
     xtreamMultiSourceTvCatalog,
