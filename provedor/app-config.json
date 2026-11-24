@@ -11,7 +11,7 @@
   "XTREAM_TIMEOUT_MS": 25000,
   "PROVIDERS_API_BASE": "https://apiprovedor.onrender.com",
   "XTREAM_API_BASE": "https://apixtream.onrender.com",
-  "TV_API_BASE": "https://apitvaddon.onrender.com/api/v1",
+  "TV_API_BASE": "https://apitvaddon-production.up.railway.app",
   "PROVIDER_SEARCH_PRIORITY": [
     "megaembed",
     "embedmovies",
