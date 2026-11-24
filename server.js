@@ -539,7 +539,8 @@ const LiveTv = (() => {
 const dns = require('node:dns').promises;
 const net = require('node:net');
 
-const API_BASE = (CONFIG.LIVE_TV_API_BASE || 'https://api.reidoscanais.si').replace(/\/$/, '');
+const API_BASE = (CONFIG.LIVE_TV_API_BASE || 'https://api.reidoscanais.im').replace(/\/$/, '');
+const LIVE_TV_FALLBACK_BASE = String(CONFIG.LIVE_TV_FALLBACK_BASE || '').replace(/\/$/, '');
 const EMBED_CANAIS_HOME = (CONFIG.EMBED_CANAIS_HOME || 'https://embedcanais.online/').replace(/\/$/, '/');
 const EMBED_CANAIS_TIMEOUT_MS = boundedInt(CONFIG.EMBED_CANAIS_TIMEOUT_MS, 25000, 3000, 25000);
 const EMBED_CANAIS_PROVIDER = 'Emb Canais';
@@ -549,6 +550,7 @@ const LIVE_EVENTS_CATALOG_ID = 'iracematv_events';
 const UPCOMING_EVENTS_CATALOG_ID = 'iracematv_upcoming';
 const ALL_EVENTS_CATALOG_ID = 'iracematv_all_events';
 const EMBEDTV_API_BASE = (CONFIG.TV_API_BASE || CONFIG.EMBEDTV_API_BASE || 'https://embedtv.cc').replace(/\/$/, '');
+const EMBEDTV_FALLBACK_BASE = String(CONFIG.EMBEDTV_FALLBACK_BASE || '').replace(/\/$/, '');
 const EMBEDTV_SOURCE_REFERER = CONFIG.EMBEDTV_SOURCE_REFERER || 'https://embedtv.cc/';
 const EMBEDTV_CHANNEL_CATALOG_ID = 'iracematv_embedtv';
 const EMBEDTV_EVENTS_CATALOG_ID = 'iracematv_agenda';
@@ -791,38 +793,86 @@ function toArrayPayload(payload) {
   return null;
 }
 
-async function fetchJson(endpoint) {
-  const url = new URL(String(endpoint || '').replace(/^\/+/, ''), `${API_BASE}/`);
-  if (url.origin !== new URL(API_BASE).origin) throw new Error('Endpoint da API fora do host configurado');
+async function fetchJsonFromBase(base, endpoint, extraHeaders = {}, timeoutMs = API_REQUEST_TIMEOUT_MS) {
+  const normalizedBase = String(base || '').replace(/\/$/, '');
+  if (!normalizedBase) throw new Error('Base de API não configurada');
+  const url = new URL(String(endpoint || '').replace(/^\/+/, ''), `${normalizedBase}/`);
+  if (url.origin !== new URL(normalizedBase).origin) throw new Error('Endpoint da API fora do host configurado');
   const response = await fetch(url, {
-    headers: { accept: 'application/json', 'user-agent': 'IracemaTV/1.5.5' },
-    signal: AbortSignal.timeout(API_REQUEST_TIMEOUT_MS)
+    headers: { accept: 'application/json', 'user-agent': 'IracemaTV/1.5.5', ...extraHeaders },
+    signal: AbortSignal.timeout(timeoutMs)
   });
   if (!response.ok) throw new Error(`${endpoint} respondeu HTTP ${response.status}`);
   return response.json();
 }
 
+async function fetchJson(endpoint) {
+  return fetchJsonFromBase(API_BASE, endpoint);
+}
+
+async function fetchLiveItemsRenderThenLocal(renderEndpoint, localEndpoint, label) {
+  const stages = [{ id: 'render', base: API_BASE, endpoint: renderEndpoint }];
+  if (LIVE_TV_FALLBACK_BASE && new URL(LIVE_TV_FALLBACK_BASE).origin !== new URL(API_BASE).origin) {
+    stages.push({ id: 'local', base: LIVE_TV_FALLBACK_BASE, endpoint: localEndpoint });
+  }
+  const errors = [];
+  const result = await firstNonEmptySequential(stages, async (stage) => {
+    const payload = await fetchJsonFromBase(stage.base, stage.endpoint);
+    const items = toArrayPayload(payload);
+    if (!items) throw new Error('resposta sem lista');
+    sourceLog(`${label}-source-result`, { phase: stage.id, count: items.length });
+    return items;
+  }, {
+    onError: (stage, error) => {
+      errors.push(stage);
+      sourceLog(`${label}-source-error`, { phase: stage.id, error: String(error.message || error).slice(0, 100) });
+    }
+  });
+  return { ...result, errors };
+}
+
 async function fetchEmbedTvJson(pathname) {
   const hostedPath = /apitvaddon\.onrender\.com/i.test(EMBEDTV_API_BASE)
-    ? ({ '/api/channels': 'channels', '/api/events': 'embedtv/events', '/api/epg_all': 'embedtv/epg' }[pathname] || pathname.replace(/^\//, ''))
+    ? ({ '/api/channels': 'channels?source=embedtv&limit=500', '/api/events': 'embedtv/events', '/api/epg_all': 'embedtv/epg' }[pathname] || pathname.replace(/^\//, ''))
     : pathname;
-  const url = new URL(hostedPath, `${EMBEDTV_API_BASE}/`);
-  try {
-    const response = await fetch(url, {
-      headers: { accept: 'application/json, text/plain, */*', 'user-agent': DEFAULT_UA, referer: EMBEDTV_SOURCE_REFERER },
-      signal: AbortSignal.timeout(15000)
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const text = await response.text();
-    try { return JSON.parse(text); } catch { throw new Error('resposta não é JSON'); }
-  } catch (error) {
-    // O catálogo local mantém o addon utilizável quando o host remoto bloqueia o servidor.
-    if (pathname === '/api/channels' && fs.existsSync(EMBEDTV_FALLBACK_FILE)) {
-      const payload = JSON.parse(fs.readFileSync(EMBEDTV_FALLBACK_FILE, 'utf8'));
-      return Array.isArray(payload) ? payload : { channels: payload.channels || [] };
-    }
-    throw new Error(`EmbedTV ${pathname} indisponível: ${String(error.message || error).slice(0, 120)}`);
+  const remoteBase = EMBEDTV_API_BASE;
+  const localBase = EMBEDTV_FALLBACK_BASE;
+  const attempts = [{ name: 'render', base: remoteBase, pathname: hostedPath }];
+  if (localBase && new URL(localBase).origin !== new URL(remoteBase).origin) {
+    attempts.push({ name: 'local', base: localBase, pathname });
   }
+  let lastEmptyPayload = null;
+  let lastError = null;
+  for (const attempt of attempts) {
+    const url = new URL(String(attempt.pathname || '').replace(/^\/+/, ''), `${attempt.base}/`);
+    try {
+      const response = await fetch(url, {
+        headers: { accept: 'application/json, text/plain, */*', 'user-agent': DEFAULT_UA, referer: EMBEDTV_SOURCE_REFERER },
+        signal: AbortSignal.timeout(15000)
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const text = await response.text();
+      let payload;
+      try { payload = JSON.parse(text); } catch { throw new Error('resposta não é JSON'); }
+      const items = toArrayPayload(payload);
+      if (items?.length) {
+        sourceLog('embedtv-api-source-result', { phase: attempt.name, path: pathname, count: items.length });
+        return payload;
+      }
+      if (payload != null) lastEmptyPayload = payload;
+      sourceLog('embedtv-api-source-empty', { phase: attempt.name, path: pathname });
+    } catch (error) {
+      lastError = error;
+      sourceLog('embedtv-api-source-error', { phase: attempt.name, path: pathname, error: String(error.message || error).slice(0, 100) });
+    }
+  }
+  if (pathname === '/api/channels' && fs.existsSync(EMBEDTV_FALLBACK_FILE)) {
+    const payload = JSON.parse(fs.readFileSync(EMBEDTV_FALLBACK_FILE, 'utf8'));
+    sourceLog('embedtv-api-file-fallback', { path: pathname, count: Array.isArray(payload?.channels) ? payload.channels.length : 0 });
+    return Array.isArray(payload) ? payload : { channels: payload.channels || [] };
+  }
+  if (lastEmptyPayload) return lastEmptyPayload;
+  throw new Error(`EmbedTV ${pathname} indisponível: ${String(lastError?.message || lastError || 'sem resposta').slice(0, 120)}`);
 }
 async function getEmbedTvChannels(force = false) {
   const cached = cache.embedTv.channels;
@@ -985,16 +1035,18 @@ function addGloboAlternates(channel) {
 
 async function getChannels(force = false) {
   if (!force && cache.channels.data && Date.now() - cache.channels.at < API_CACHE_MS) return cache.channels.data;
-  const [allPayload, livePayload] = await Promise.all([
-    fetchJson('/channels?source=all&limit=500'),
-    fetchJson('/channels?source=live&limit=500').catch((error) => {
-      sourceLog('rei-live-channels-fetch-error', { message: error.message, timeoutMs: API_REQUEST_TIMEOUT_MS });
-      return { items: [] };
+  const [liveResult, embedResult] = await Promise.all([
+    fetchLiveItemsRenderThenLocal('/channels?source=live&limit=500', '/channels', 'rei-live-channels'),
+    getEmbedTvChannels().then((items) => ({ items, errors: [] })).catch((error) => {
+      sourceLog('embedtv-channel-catalog-error', { message: String(error.message || error).slice(0, 120) });
+      return { items: [], errors: ['render', 'local'] };
     })
   ]);
-  const data = toArrayPayload(allPayload);
-  const liveData = toArrayPayload(livePayload) || [];
-  if (!data) throw new Error('Resposta de /channels sem lista de canais');
+  const data = Array.isArray(embedResult.items) ? embedResult.items : [];
+  const liveData = Array.isArray(liveResult.items) ? liveResult.items : [];
+  if (!data.length && !liveData.length && liveResult.errors.length && embedResult.errors.length) {
+    throw new Error('Render e upstreams locais de canais indisponíveis');
+  }
   const normalizeChannel = (channel, source = '') => {
     const sourceUrl = channel.sourceUrl || channel.source_url || channel.url || channel.href || '';
     const embeds = Array.isArray(channel.embeds) ? channel.embeds : [];
@@ -1054,7 +1106,9 @@ async function getChannels(force = false) {
   }));
   const channels = [...merged, ...fallbacks, ...extraEmbedChannels];
   cache.channels = { at: Date.now(), data: channels };
-  cache.errors.channels = null;
+  cache.errors.channels = liveResult.errors.length
+    ? 'Render e upstream local de canais Rei dos Canais indisponíveis'
+    : null;
   return channels;
 }
 
@@ -1065,10 +1119,15 @@ async function getEvents(force = false, status = null) {
     return (await getEvents(force)).filter((event) => eventStatus(event) === status);
   }
   if (!force && cache.events.data && Date.now() - cache.events.at < API_CACHE_MS) return cache.events.data;
-  const data = toArrayPayload(await fetchJson('/sports'));
-  if (!data) throw new Error('Resposta de /sports sem lista de eventos');
+  const result = await fetchLiveItemsRenderThenLocal('/sports', '/sports', 'rei-events');
+  if (!result.items.length && result.errors.length && cache.events.data?.length) {
+    cache.errors.events = 'Render e upstream local indisponíveis; exibindo cache anterior';
+    sourceLog('rei-events-stale-cache', { count: cache.events.data.length });
+    return cache.events.data;
+  }
+  const data = result.items.map((event) => ({ ...event, source_name: event.source_name || 'Rei dos Canais' }));
   cache.events = { at: Date.now(), data };
-  cache.errors.events = null;
+  cache.errors.events = result.errors.length && !data.length ? 'Render e upstream local indisponíveis' : null;
   return data;
 }
 
@@ -1111,7 +1170,7 @@ function eventMeta(event, forcedStatus = eventStatus(event)) {
   return {
     id: eventId(event), type: 'tv', name: title,
     ...(poster ? { poster, background: poster } : {}), posterShape: 'poster',
-    description: [event.description, event.competition, teams, date].filter(Boolean).join('\n') || title,
+    description: [event.description, event.competition, teams, date, `Provedor • ${event.source_name || 'Rei dos Canais'}`].filter(Boolean).join('\n') || title,
     genres: ['Eventos', category],
     releaseInfo: forcedStatus === 'live' ? 'Ao vivo agora' : forcedStatus === 'upcoming' ? 'Em breve' : forcedStatus === 'finished' ? 'Encerrado' : 'Status não informado'
   };
@@ -1928,7 +1987,7 @@ async function health() {
   return {
   CHANNEL_CATALOG_ID, LIVE_EVENTS_CATALOG_ID, UPCOMING_EVENTS_CATALOG_ID, ALL_EVENTS_CATALOG_ID, EMBEDTV_CHANNEL_CATALOG_ID, EMBEDTV_EVENTS_CATALOG_ID,
   CHANNEL_PREFIX, EVENT_PREFIX, EMBEDTV_CHANNEL_PREFIX, EMBEDTV_EVENT_PREFIX, handlesCatalog, catalog, meta, streams, health,
-  _test: { embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, reiProxyUrl, addGloboAlternates, getChannels, getEmbedTvChannels, getEmbedTvEvents, getEmbedTvEpg, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
+  _test: { embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, reiProxyUrl, addGloboAlternates, getChannels, getEvents, getEmbedTvChannels, getEmbedTvEvents, getEmbedTvEpg, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
 };
 })();
 
