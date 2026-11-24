@@ -565,6 +565,7 @@ const API_REQUEST_TIMEOUT_MS = boundedInt(CONFIG.LIVE_TV_API_TIMEOUT_MS, 30_000,
 const MAX_CAPTURE_PAGES = boundedInt(CONFIG.LIVE_TV_MAX_CAPTURE_PAGES, 8, 1, 12);
 const PAGE_TIMEOUT_MS = boundedInt(CONFIG.LIVE_TV_PAGE_TIMEOUT_MS, 25000, 1000, 25000);
 const CAPTURE_TIMEOUT_MS = boundedInt(CONFIG.LIVE_TV_CAPTURE_TIMEOUT_MS, 25000, 3000, 25000);
+const EVENT_CAPTURE_TIMEOUT_MS = Math.min(CAPTURE_TIMEOUT_MS, boundedInt(CONFIG.LIVE_TV_EVENT_CAPTURE_TIMEOUT_MS, 10_000, 3000, 25000));
 const MAX_PAGE_BYTES = boundedInt(CONFIG.LIVE_TV_MAX_PAGE_BYTES, 1_000_000, 16_384, 4_000_000);
 
 // Links fixos 1210 dos canais Globo. Mantemos estes endereços como opções
@@ -1424,6 +1425,10 @@ function extractReiM3u8Urls(text) {
 function extractReiGeneratedPageLinks(text, baseUrl) {
   const links = [];
   const source = String(text || '');
+  if (source.length > 256_000) return links;
+  const hasAtobPayload = /\batob\s*\(/i.test(source);
+  const hasReiArrayPayload = /\b(?:var|let|const)\s+[A-Za-z_$][\w$]*\s*=\s*\[[^\]]{1,4096}\]\s*,\s*[A-Za-z_$][\w$]*\s*=\s*\[/i.test(source);
+  if (!hasAtobPayload && !hasReiArrayPayload) return links;
   const addUrl = (value) => {
     try {
       const url = new URL(value, baseUrl);
@@ -1488,7 +1493,14 @@ function extractPageLinks(html, baseUrl) {
   for (const match of source.matchAll(/(?:iframeSrc|playerUrl|embedUrl|file|source|src|hls|playlist)\s*[:=]\s*["']([^"']+)["']/gi)) {
     if (!/\.m3u8(?:$|[?#])/i.test(match[1])) add(match[1], 'player');
   }
-  for (const url of extractReiGeneratedPageLinks(source, baseUrl)) add(url, 'rei-generated-iframe');
+  let reiGeneratedHost = false;
+  try {
+    const host = new URL(baseUrl).hostname.toLowerCase();
+    reiGeneratedHost = /(?:^|\.)(?:reidoscanais|rdcanais|mastruzcomleite|temperosdatia)\./i.test(host);
+  } catch { /* URL-base inválida: não executar decodificador especializado */ }
+  if (reiGeneratedHost) {
+    for (const url of extractReiGeneratedPageLinks(source, baseUrl)) add(url, 'rei-generated-iframe');
+  }
   return links;
 }
 
@@ -1596,11 +1608,16 @@ async function captureCandidatePlayback(candidate, itemKey, deadline = Date.now(
   return null;
 }
 
-async function captureAllPlaybackOptions(item, itemKey) {
+async function captureAllPlaybackOptions(item, itemKey, timeoutMs = CAPTURE_TIMEOUT_MS, captureCandidate = captureCandidatePlayback) {
   const candidates = prioritizeEmbedCanais(streamCandidates(item)).slice(0, 12);
-  const deadline = Date.now() + CAPTURE_TIMEOUT_MS;
+  const deadline = Date.now() + Math.max(1, Number(timeoutMs) || CAPTURE_TIMEOUT_MS);
   const resolved = await Promise.all(candidates.map(async (candidate, index) => {
-    const captured = await captureCandidatePlayback(candidate, `${itemKey}-op${index + 1}`, deadline);
+    const remainingMs = Math.max(1, deadline - Date.now());
+    const captured = await withTimeout(
+      captureCandidate(candidate, `${itemKey}-op${index + 1}`, deadline),
+      remainingMs,
+      null
+    );
     if (captured) {
       const label = candidate.label || captured.label || `Opção ${index + 1}`;
       return [
@@ -1631,6 +1648,19 @@ async function captureAllPlaybackOptions(item, itemKey) {
     captured: streams.filter((stream) => !stream.isEmbed).map(({ url, label, referer }) => ({ url, label, referer }))
   });
   return streams;
+}
+
+function eventPlayerPageStreams(item) {
+  const pages = [...new Map(streamCandidates(item)
+    .map((candidate) => ({ url: candidate.pageUrl || candidate.url, candidate }))
+    .filter(({ url }) => /^https?:\/\//i.test(String(url)) && !isDirectPlaybackUrl(url))
+    .map((entry) => [entry.url, entry])).values()];
+  return pages.map(({ url, candidate }) => ({
+    name: `▶️ ${candidate.label || 'Player do evento'}`,
+    title: `${item.title || item.name || 'Evento esportivo'} • Player externo`,
+    url,
+    behaviorHints: { notWebReady: true }
+  }));
 }
 
 async function captureGloboPlaybackOptions(item, itemKey) {
@@ -1722,11 +1752,17 @@ function youtubeVideoId(value) {
 }
 
 async function streams(type, id, refreshedEmbedTv = false) {
+  if (String(id).startsWith(EVENT_PREFIX)) sourceLog('rei-event-stream-request-start', { id, type });
   const item = await getItem(type, id);
-  if (!item) return { streams: [] };
+  if (!item) {
+    if (String(id).startsWith(EVENT_PREFIX)) sourceLog('rei-event-stream-item-missing', { id, type });
+    return { streams: [] };
+  }
+  if (String(id).startsWith(EVENT_PREFIX)) sourceLog('rei-event-stream-item-loaded', { id, type, title: item.title || item.name || '', source: item.source_name || '' });
   const key = String(item.id || item.slug || item.name || item.title || '');
   const isReiItem = String(id).startsWith(CHANNEL_PREFIX) || String(id).startsWith(EVENT_PREFIX);
   const candidates = streamCandidates(item);
+  if (String(id).startsWith(EVENT_PREFIX)) sourceLog('rei-event-stream-lookup', { id, candidateCount: candidates.length, labels: candidates.map((candidate) => candidate.label || ''), isReiItem });
   if (String(id).startsWith(EMBEDTV_CHANNEL_PREFIX)) {
     sourceLog('embedtv-stream-candidates', {
       id,
@@ -1846,10 +1882,12 @@ async function streams(type, id, refreshedEmbedTv = false) {
         })) };
       }
     }
+    sourceLog('rei-event-capture-start', { id, candidates: candidates.length, timeoutMs: EVENT_CAPTURE_TIMEOUT_MS });
     const alternatives = prioritizeEmbedCanais(
-      (await withTimeout(captureAllPlaybackOptions(item, id), CAPTURE_TIMEOUT_MS, []))
+      (await withTimeout(captureAllPlaybackOptions(item, id, EVENT_CAPTURE_TIMEOUT_MS), EVENT_CAPTURE_TIMEOUT_MS + 250, []))
         .filter((option) => !option.isEmbed && isDirectPlaybackUrl(option.url) && !/rei\s*emb.*mirror\s*2/i.test(String(option.label || '')))
     );
+    sourceLog('rei-event-capture-finished', { id, directCount: alternatives.length });
     if (alternatives.length) {
       return { streams: alternatives.map((option, index) => {
         const request = {
@@ -1873,6 +1911,18 @@ async function streams(type, id, refreshedEmbedTv = false) {
           behaviorHints: { notWebReady: true, proxyHeaders: { request } }
         };
       }) };
+    }
+    if (String(id).startsWith(EVENT_PREFIX)) {
+      const playerPages = eventPlayerPageStreams(item);
+      if (playerPages.length) {
+        sourceLog('rei-event-player-page-fallback', {
+          id,
+          count: playerPages.length,
+          names: playerPages.map((stream) => stream.name),
+          reason: 'direct-media-not-captured'
+        });
+        return { streams: playerPages };
+      }
     }
   }
   if (normalizeText(item.name || item.title) === 'globo') {
@@ -2001,7 +2051,7 @@ async function health() {
   return {
   CHANNEL_CATALOG_ID, LIVE_EVENTS_CATALOG_ID, UPCOMING_EVENTS_CATALOG_ID, ALL_EVENTS_CATALOG_ID, EMBEDTV_CHANNEL_CATALOG_ID, EMBEDTV_EVENTS_CATALOG_ID,
   CHANNEL_PREFIX, EVENT_PREFIX, EMBEDTV_CHANNEL_PREFIX, EMBEDTV_EVENT_PREFIX, handlesCatalog, catalog, meta, streams, health,
-  _test: { embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, reiProxyUrl, addGloboAlternates, getChannels, getEvents, getEmbedCanaisChannels, getEmbedTvChannels, getEmbedTvEvents, getEmbedTvEpg, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
+  _test: { embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, eventCaptureTimeoutMs: EVENT_CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, eventPlayerPageStreams, reiProxyUrl, addGloboAlternates, getChannels, getEvents, getEmbedCanaisChannels, getEmbedTvChannels, getEmbedTvEvents, getEmbedTvEpg, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
 };
 })();
 
