@@ -49,6 +49,7 @@
     "lbplay"
   ],
   "LIVE_TV_API_BASE": "https://apitvaddon.onrender.com/api/v1",
+  "LIVE_TV_FALLBACK_BASE": "https://api.reidoscanais.im",
   "LIVE_TV_API_TIMEOUT_MS": "30000",
   "LIVE_TV_CACHE_MS": "300000",
   "LIVE_TV_RESOLVE_CACHE_MS": "600000",
@@ -61,6 +62,7 @@
   "M3U_SOURCE_TIMEOUT_MS": 25000,
   "M3U_TIMEOUT_MS": 25000,
   "EMBEDTV_API_BASE": "https://apitvaddon.onrender.com/api/v1",
+  "EMBEDTV_FALLBACK_BASE": "https://embedtv.cc",
   "EMBEDTV_SOURCE_REFERER": "https://embedtv.cc/",
   "EMBEDTV_FALLBACK_FILE": "./embedTV.json",
   "M3U_SOURCES": [
