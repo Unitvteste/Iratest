@@ -11,7 +11,7 @@
   "XTREAM_TIMEOUT_MS": 25000,
   "PROVIDERS_API_BASE": "https://apiprovedor.onrender.com",
   "XTREAM_API_BASE": "https://apixtream.onrender.com",
-  "TV_API_BASE": "https://apitvaddon-production.up.railway.app",
+  "TV_API_BASE": "https://apitvaddon-production.up.railway.app/api/v1",
   "PROVIDER_SEARCH_PRIORITY": [
     "megaembed",
     "embedmovies",
@@ -48,7 +48,7 @@
     "env-novomundo",
     "lbplay"
   ],
-  "LIVE_TV_API_BASE": "https://apitvaddon.onrender.com/api/v1",
+  "LIVE_TV_API_BASE": "https://apitvaddon-production.up.railway.app/api/v1",
   "LIVE_TV_FALLBACK_BASE": "https://api.reidoscanais.im",
   "LIVE_TV_API_TIMEOUT_MS": "30000",
   "LIVE_TV_CACHE_MS": "300000",
@@ -61,7 +61,7 @@
   "PROVIDER_RESOLVER_MAX_PAGES": "8",
   "M3U_SOURCE_TIMEOUT_MS": 25000,
   "M3U_TIMEOUT_MS": 25000,
-  "EMBEDTV_API_BASE": "https://apitvaddon.onrender.com/api/v1",
+  "EMBEDTV_API_BASE": "https://apitvaddon-production.up.railway.app/api/v1",
   "EMBEDTV_FALLBACK_BASE": "https://embedtv.cc",
   "EMBEDTV_SOURCE_REFERER": "https://embedtv.cc/",
   "EMBEDTV_FALLBACK_FILE": "./embedTV.json",
