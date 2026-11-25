@@ -567,7 +567,7 @@ const API_REQUEST_TIMEOUT_MS = boundedInt(CONFIG.LIVE_TV_API_TIMEOUT_MS, 30_000,
 const MAX_CAPTURE_PAGES = boundedInt(CONFIG.LIVE_TV_MAX_CAPTURE_PAGES, 8, 1, 12);
 const PAGE_TIMEOUT_MS = boundedInt(CONFIG.LIVE_TV_PAGE_TIMEOUT_MS, 25000, 1000, 25000);
 const CAPTURE_TIMEOUT_MS = boundedInt(CONFIG.LIVE_TV_CAPTURE_TIMEOUT_MS, 25000, 3000, 25000);
-const EVENT_CAPTURE_TIMEOUT_MS = Math.min(CAPTURE_TIMEOUT_MS, boundedInt(CONFIG.LIVE_TV_EVENT_CAPTURE_TIMEOUT_MS, 10_000, 3000, 25000));
+const EVENT_CAPTURE_TIMEOUT_MS = Math.min(CAPTURE_TIMEOUT_MS, boundedInt(CONFIG.LIVE_TV_EVENT_CAPTURE_TIMEOUT_MS, CAPTURE_TIMEOUT_MS, 3000, 25000));
 const MAX_PAGE_BYTES = boundedInt(CONFIG.LIVE_TV_MAX_PAGE_BYTES, 1_000_000, 16_384, 4_000_000);
 
 // Links fixos 1210 dos canais Globo. Mantemos estes endereços como opções
@@ -8232,7 +8232,7 @@ function isAllowedReiMediaUrl(value) {
 }
 
 function isReiDirectProxyHost(value) {
-  try { return /^livestream\.st$/i.test(new URL(value).hostname); }
+  try { return /^(?:livestream\.st|atlas\.mediastream\.best)$/i.test(new URL(value).hostname); }
   catch { return false; }
 }
 
