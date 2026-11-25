@@ -3708,34 +3708,21 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
       streams: remoteStreams.length,
       ...(hostedFailure ? { error: hostedFailure } : {})
     });
-    if (remoteStreams.length && !allPrioritySourcesFailed) {
+    if (remoteStreams.length) {
       if (!signal?.aborted && !testOptions.bypassCache) DIRECT_PROVIDER_STREAM_CACHE.set(cacheKey, {
         streams: remoteStreams, expiresAt: Date.now() + 30_000
       });
       return testOptions.returnOutcome ? { streams: remoteStreams, outcomes: [], elapsedMs: 0 } : remoteStreams;
     }
-    if (!allPrioritySourcesFailed) {
-      sourceLog('hosted-provider-api-no-local-fallback', {
-        id: imdb || tmdbId,
-        type,
-        reason: remoteStreams.length
-          ? 'API retornou streams; falha parcial não justifica busca local'
-          : hostedResult?.partial || failedBatches.length || failedSources.length || failedSourceDetails.length
-            ? 'Nem todas as prioridades falharam; fontes locais não consultadas'
-            : 'API respondeu sem streams e sem falha total; fontes locais não consultadas',
-        streams: remoteStreams.length,
-        successfulBatches: Number(hostedResult?.successfulBatches) || 0,
-        failedBatches: failedBatches.length,
-        unattemptedBatches
-      });
-      return testOptions.returnOutcome
-        ? { streams: remoteStreams, outcomes: [], elapsedMs: Number(hostedResult?.elapsedMs) || Date.now() - apiStartedAt }
-        : remoteStreams;
-    }
-    hostedFallbackReason = hostedFailure ? 'api-request-failed' : 'all-priority-sources-failed';
-    localProviderTasks = Array.isArray(testOptions.sourceTasks)
+    hostedFallbackReason = hostedFailure
+      ? 'api-request-failed'
+      : failedBatches.length || failedSources.length || failedSourceDetails.length || hostedResult?.partial
+        ? 'priority-search-no-streams-with-errors'
+        : 'priority-search-empty';
+    const candidateProviderTasks = Array.isArray(testOptions.sourceTasks)
       ? testOptions.sourceTasks
       : buildProviderSourceTasks({ type, imdbId, tmdbResult, idMatch });
+    localProviderTasks = selectPriorityProviderTasks(candidateProviderTasks);
     sourceLog('local-provider-fallback-start', {
       id: imdb || tmdbId,
       type,
@@ -3747,6 +3734,7 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
         ...failedSources.map((source) => String(typeof source === 'string' ? source : source?.id || source?.sourceId || 'unknown'))
       ])],
       failedSourceDetails,
+      priorityProviderIds: priority,
       localSourcesAvailable: localProviderTasks.length,
       localSourceIds: localProviderTasks.map((source) => String(source.id || source.sourceName || source.providerId || 'unknown'))
     });
@@ -5403,25 +5391,23 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
       allPrioritySourcesFailed,
       ...(hostedFailure ? { error: hostedFailure } : {})
     });
-    if (!allPrioritySourcesFailed) {
+    if (remote.length) {
       sourceLog('hosted-xtream-api-no-local-fallback', {
         id: String(id),
         type,
-        reason: remote.length
-          ? 'API retornou streams; falha parcial não justifica busca local'
-          : hostedFailure || failedSources.length || failedSourceDetails.length || hostedResult?.partial
-            ? 'Nem todas as prioridades falharam; fontes locais não consultadas'
-            : 'API respondeu sem streams e sem falha total; fontes locais não consultadas',
+        reason: 'API retornou streams; fallback local não necessário',
         streams: remote.length,
         failedSources,
         partial: Boolean(hostedResult?.partial)
       });
-      return testOptions.returnOutcome
-        ? { streams: remote, outcomes: [], elapsedMs: Number(hostedResult?.elapsedMs) || Date.now() - apiStartedAt }
-        : remote;
+      return testOptions.returnOutcome ? { streams: remote, outcomes: [], elapsedMs: Number(hostedResult?.elapsedMs) || Date.now() - apiStartedAt } : remote;
     }
-    const sourcesForFallback = testOptions.sources || XTREAM_SOURCES;
-    hostedFallbackReason = hostedFailure ? 'api-request-failed' : 'all-priority-sources-failed';
+    const sourcesForFallback = selectPriorityXtreamSources(testOptions.sources || XTREAM_SOURCES);
+    hostedFallbackReason = hostedFailure
+      ? 'api-request-failed'
+      : failedSources.length || failedSourceDetails.length || hostedResult?.partial
+        ? 'priority-search-no-streams-with-errors'
+        : 'priority-search-empty';
     sourceLog('local-xtream-fallback-start', {
       id: String(id),
       type,
@@ -5429,11 +5415,17 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
       error: hostedFailure || undefined,
       failedSources: hostedFailure?.failedSources?.length ? hostedFailure.failedSources : failedSources,
       failedSourceDetails: hostedFailure?.failedSourceDetails?.length ? hostedFailure.failedSourceDetails : failedSourceDetails,
+      searchedSourceIds: Array.isArray(hostedResult?.searchedSourceIds) ? hostedResult.searchedSourceIds : [],
+      unattemptedSources: Array.isArray(hostedResult?.unattemptedSources) ? hostedResult.unattemptedSources : [],
+      prioritySourceIds: XTREAM_SEARCH_PRIORITY_IDS,
       localSourcesAvailable: sourcesForFallback.length,
       localSourceIds: sourcesForFallback.map((source) => String(source.id || source.sourceName || 'unknown'))
     });
   }
-  const sourcesToSearch = xtreamSearchOrder(testOptions.sources || XTREAM_SOURCES);
+  const candidateXtreamSources = testOptions.sources || XTREAM_SOURCES;
+  const sourcesToSearch = testOptions.useHostedApi === true
+    ? selectPriorityXtreamSources(candidateXtreamSources)
+    : xtreamSearchOrder(candidateXtreamSources);
   const requestSource = testOptions.requestSource || xtreamSourceRequest;
   const idMatch = String(id).match(/^tt\d+(?::(\d+):(\d+))?$/i);
   const names = [...new Set([
