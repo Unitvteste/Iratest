@@ -1652,17 +1652,10 @@ async function captureAllPlaybackOptions(item, itemKey, timeoutMs = CAPTURE_TIME
   return streams;
 }
 
-function eventPlayerPageStreams(item) {
-  const pages = [...new Map(streamCandidates(item)
-    .map((candidate) => ({ url: candidate.pageUrl || candidate.url, candidate }))
-    .filter(({ url }) => /^https?:\/\//i.test(String(url)) && !isDirectPlaybackUrl(url))
-    .map((entry) => [entry.url, entry])).values()];
-  return pages.map(({ url, candidate }) => ({
-    name: `▶️ ${candidate.label || 'Player do evento'}`,
-    title: `${item.title || item.name || 'Evento esportivo'} • Player externo`,
-    url,
-    behaviorHints: { notWebReady: true }
-  }));
+function eventPlayerPageStreams(_item) {
+  // Uma página HTML não é uma mídia reproduzível pelo player interno do Stremio.
+  // Se a captura não encontrar uma URL direta, não devolver o player externo.
+  return [];
 }
 
 async function captureGloboPlaybackOptions(item, itemKey) {
@@ -1910,7 +1903,7 @@ async function streams(type, id, refreshedEmbedTv = false) {
           title: ['IracemaTV', `Canal • ${item.name || item.title || 'Evento'}`, item.epg?.current?.title ? `Agora • ${item.epg.current.title}` : '', `Provedor • ${label}`, 'Ao Vivo'].filter(Boolean).join('\n'),
           url: convertedUrl || option.url,
           type: convertedUrl || /\.m3u8(?:$|[?#])/i.test(option.url) ? 'hls' : undefined,
-          behaviorHints: { notWebReady: true, proxyHeaders: { request } }
+          behaviorHints: { proxyHeaders: { request } }
         };
       }) };
     }
@@ -1969,7 +1962,10 @@ async function streams(type, id, refreshedEmbedTv = false) {
           title: ['IracemaTV', `Canal • ${item.name || item.title || 'Canal'}`, item.epg?.current?.title ? `Agora • ${item.epg.current.title}` : '', `Provedor • ${label}`, 'Ao Vivo'].filter(Boolean).join('\n'),
           url: convertedUrl || option.url,
           ...(convertedUrl || /\.m3u8(?:$|[?#])/i.test(option.url) ? { type: 'hls' } : {}),
-          behaviorHints: { notWebReady: true, proxyHeaders: { request } }
+          behaviorHints: {
+            ...(String(id).startsWith(EVENT_PREFIX) ? {} : { notWebReady: true }),
+            proxyHeaders: { request }
+          }
         };
       }) };
     }
@@ -1993,7 +1989,10 @@ async function streams(type, id, refreshedEmbedTv = false) {
       title: `${item.name || item.title || 'Transmissão'} • Ao Vivo`,
       url: convertedUrl || direct.url,
       ...(convertedUrl || /\.m3u8(?:$|[?#])/i.test(direct.url) ? { type: 'hls' } : {}),
-      behaviorHints: { notWebReady: true, proxyHeaders: { request } }
+      behaviorHints: {
+        ...(String(id).startsWith(EVENT_PREFIX) ? {} : { notWebReady: true }),
+        proxyHeaders: { request }
+      }
     }] };
   }
 
@@ -2855,7 +2854,7 @@ function normalizeProviderStream(stream, providerId) {
 const PROVIDER_SEARCH_PRIORITY_IDS = Object.freeze(
   Array.isArray(CONFIG.PROVIDER_SEARCH_PRIORITY) && CONFIG.PROVIDER_SEARCH_PRIORITY.length
     ? [...new Set(CONFIG.PROVIDER_SEARCH_PRIORITY.map((id) => String(id).trim().toLowerCase()).filter(Boolean))]
-    : ['megaembed', 'embedmovies', 'redeflix', 'playerflix', 'myembed', 'fshd', 'pomfy', 'rivo', 'vaqueirofilmes', 'pobreflix', 'framextv']
+    : ['cineveo', 'redecanais', 'redecanais-deals', 'brflix', 'vizer', 'megaembed', 'embedmovies', 'playerflix', 'myembed', 'fshd', 'pomfy', 'rivo', 'vaqueirofilmes', 'framextv']
 );
 const XTREAM_SEARCH_PRIORITY_IDS = Object.freeze(
   Array.isArray(CONFIG.XTREAM_SEARCH_PRIORITY) && CONFIG.XTREAM_SEARCH_PRIORITY.length
