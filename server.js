@@ -552,7 +552,7 @@ const CHANNEL_CATALOG_ID = 'iracematv';
 const LIVE_EVENTS_CATALOG_ID = 'iracematv_events';
 const UPCOMING_EVENTS_CATALOG_ID = 'iracematv_upcoming';
 const ALL_EVENTS_CATALOG_ID = 'iracematv_all_events';
-const EMBEDTV_API_BASE = (CONFIG.TV_API_BASE || CONFIG.EMBEDTV_API_BASE || 'https://embedtv.my').replace(/\/$/, '');
+const EMBEDTV_API_BASE = (CONFIG.EMBEDTV_API_BASE || CONFIG.TV_API_BASE || 'https://embedtv.my').replace(/\/$/, '');
 const EMBEDTV_FALLBACK_BASE = String(CONFIG.EMBEDTV_FALLBACK_BASE || '').replace(/\/$/, '');
 const EMBEDTV_SOURCE_REFERER = CONFIG.EMBEDTV_SOURCE_REFERER || 'https://embedtv.my/';
 const EMBEDTV_CHANNEL_CATALOG_ID = 'iracematv_embedtv';
@@ -676,7 +676,6 @@ async function chooseEmbedTvErrorSource(sources, pageUrl) {
         }
       }
       const validPlaylist = /mpegurl|x-mpegurl/i.test(contentType) || /^\uFEFF?\s*#EXTM3U/i.test(firstChunk);
-      if (validPlaylist) EMBEDTV_VALIDATED_SOURCES.add(source);
       return validPlaylist ? source : null;
     } catch {
       return null;
@@ -687,7 +686,6 @@ async function chooseEmbedTvErrorSource(sources, pageUrl) {
 const EMBEDTV_FALLBACK_CONFIG = CONFIG.EMBEDTV_FALLBACK_FILE || 'embedTV.json';
 const EMBEDTV_FALLBACK_FILE = path.isAbsolute(String(EMBEDTV_FALLBACK_CONFIG)) ? String(EMBEDTV_FALLBACK_CONFIG) : path.resolve(__dirname, String(EMBEDTV_FALLBACK_CONFIG));
 const EMBEDTV_ERROR_FALLBACKS = new Map();
-const EMBEDTV_VALIDATED_SOURCES = new Set();
 try {
   const fallbackPayload = JSON.parse(fs.readFileSync(EMBEDTV_FALLBACK_FILE, 'utf8'));
   const fallbackItems = Array.isArray(fallbackPayload) ? fallbackPayload : fallbackPayload.channels;
@@ -696,21 +694,22 @@ try {
     const errorTxt = String(item?.errorTxt || '').trim();
     if (id && isEmbedTvHlsSourceUrl(errorTxt)) {
       EMBEDTV_ERROR_FALLBACKS.set(id, errorTxt);
-      EMBEDTV_VALIDATED_SOURCES.add(errorTxt);
     }
   }
 } catch (error) {
   // O fallback de eventos é opcional; não polui o console durante a inicialização.
 }
-function embedTvFallbackFor(item, playerUrl = '') {
+async function embedTvFallbackFor(item, playerUrl = '') {
   const itemId = String(item?.id || '').trim();
-  const direct = EMBEDTV_ERROR_FALLBACKS.get(itemId);
-  if (direct) return direct;
-  try {
-    const pathname = new URL(playerUrl).pathname.split('/').filter(Boolean);
-    const slugValue = pathname[pathname.length - 1] || '';
-    return EMBEDTV_ERROR_FALLBACKS.get(slugValue) || null;
-  } catch { return null; }
+  let fallback = EMBEDTV_ERROR_FALLBACKS.get(itemId) || null;
+  if (!fallback) {
+    try {
+      const pathname = new URL(playerUrl).pathname.split('/').filter(Boolean);
+      const slugValue = pathname[pathname.length - 1] || '';
+      fallback = EMBEDTV_ERROR_FALLBACKS.get(slugValue) || null;
+    } catch { return null; }
+  }
+  return fallback ? chooseEmbedTvErrorSource([fallback], playerUrl) : null;
 }
 function isDirectPlaybackUrl(value) {
   return typeof value === 'string' && /^https?:\/\//i.test(value) && !isLikelyInvalidPlaybackUrl(value) && !/[\s<>"']/u.test(value) && /\.(?:m3u8|mpd|mp4|m4v|ts)(?:$|[?#])/i.test(value);
@@ -1778,7 +1777,7 @@ async function streams(type, id, refreshedEmbedTv = false) {
           uniqueEmbeds[0]
         );
         if (!internalSrc) {
-          internalSrc = embedTvFallbackFor(item, uniqueEmbeds[0]);
+          internalSrc = await embedTvFallbackFor(item, uniqueEmbeds[0]);
           if (internalSrc) sourceLog('embedtv-fallback-source-selected', { id, embedUrl: uniqueEmbeds[0], internalSrc });
         }
         sourceLog('embedtv-page-source', {
@@ -1847,7 +1846,7 @@ async function streams(type, id, refreshedEmbedTv = false) {
             extractEmbedTvErrorSources(page?.text),
             playerUrl
           );
-          if (!internalSrc) internalSrc = embedTvFallbackFor(item, playerUrl);
+          if (!internalSrc) internalSrc = await embedTvFallbackFor(item, playerUrl);
           if (!isEmbedTvHlsSourceUrl(internalSrc)) continue;
           const declaredReferer = page?.text?.match(/(?:const|let|var)\s+referer\s*=\s*["']([^"']+)/i)?.[1];
           const sourceReferer = declaredReferer || EMBEDTV_SOURCE_REFERER;
@@ -2007,19 +2006,16 @@ async function streams(type, id, refreshedEmbedTv = false) {
     return { streams: [] };
   }
 
-  // O player hospedado continua sendo uma opção válida quando a playlist HLS
-  // está protegida ou ainda não foi publicada; não descarte o canal/evento.
+  // Nunca devolva uma página HTML de player como stream: Stremio precisa de
+  // uma mídia direta (HLS/MPD/MP4) e o cliente pode abrir HTML como player externo.
   if (candidates.length && (String(id).startsWith(CHANNEL_PREFIX) || String(id).startsWith(EVENT_PREFIX) || String(id).startsWith(EMBEDTV_CHANNEL_PREFIX) || String(id).startsWith(EMBEDTV_EVENT_PREFIX))) {
-    const pages = [...new Map(candidates
-      .map((candidate) => ({ url: candidate.pageUrl || candidate.url, candidate }))
-      .filter(({ url }) => /^https?:\/\//i.test(String(url)))
-      .map((entry) => [entry.url, entry])).values()];
-    if (pages.length) return { streams: pages.slice(0, 8).map(({ url, candidate }) => ({
-      name: `▶️ ${candidate.label || 'EmbedTV'}`,
-      title: `${item.name || item.title || 'Transmissão'} • Player externo`,
-      url,
-      behaviorHints: { notWebReady: true }
-    })) };
+    sourceLog('live-playback-no-direct-stream', {
+      id,
+      item: item.name || item.title || key,
+      candidates: candidates.length,
+      reason: 'player-page-is-not-a-stream'
+    });
+    return { streams: [] };
   }
 
   return { streams: [] };
@@ -2053,7 +2049,7 @@ async function health() {
   return {
   CHANNEL_CATALOG_ID, LIVE_EVENTS_CATALOG_ID, UPCOMING_EVENTS_CATALOG_ID, ALL_EVENTS_CATALOG_ID, EMBEDTV_CHANNEL_CATALOG_ID, EMBEDTV_EVENTS_CATALOG_ID,
   CHANNEL_PREFIX, EVENT_PREFIX, EMBEDTV_CHANNEL_PREFIX, EMBEDTV_EVENT_PREFIX, handlesCatalog, catalog, meta, streams, health,
-  _test: { embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, eventCaptureTimeoutMs: EVENT_CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, eventPlayerPageStreams, reiProxyUrl, addGloboAlternates, getChannels, getEvents, getEmbedCanaisChannels, getEmbedTvChannels, getEmbedTvEvents, getEmbedTvEpg, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
+  _test: { embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, eventCaptureTimeoutMs: EVENT_CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, embedTvFallbackFor, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, eventPlayerPageStreams, reiProxyUrl, addGloboAlternates, getChannels, getEvents, getEmbedCanaisChannels, getEmbedTvChannels, getEmbedTvEvents, getEmbedTvEpg, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
 };
 })();
 
