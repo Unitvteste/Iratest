@@ -551,9 +551,10 @@ const CHANNEL_CATALOG_ID = 'iracematv';
 const LIVE_EVENTS_CATALOG_ID = 'iracematv_events';
 const UPCOMING_EVENTS_CATALOG_ID = 'iracematv_upcoming';
 const ALL_EVENTS_CATALOG_ID = 'iracematv_all_events';
-const EMBEDTV_API_BASE = (CONFIG.TV_API_BASE || CONFIG.EMBEDTV_API_BASE || 'https://embedtv.cc').replace(/\/$/, '');
+const EMBEDTV_API_BASE = (CONFIG.TV_API_BASE || CONFIG.EMBEDTV_API_BASE || 'https://embedtv.my').replace(/\/$/, '');
 const EMBEDTV_FALLBACK_BASE = String(CONFIG.EMBEDTV_FALLBACK_BASE || '').replace(/\/$/, '');
-const EMBEDTV_SOURCE_REFERER = CONFIG.EMBEDTV_SOURCE_REFERER || 'https://embedtv.cc/';
+const EMBEDTV_SOURCE_REFERER = CONFIG.EMBEDTV_SOURCE_REFERER || 'https://embedtv.my/';
+const EMBEDTV_API_TIMEOUT_MS = boundedInt(CONFIG.EMBEDTV_API_TIMEOUT_MS, 7000, 1000, 7000);
 const EMBEDTV_CHANNEL_CATALOG_ID = 'iracematv_embedtv';
 const EMBEDTV_EVENTS_CATALOG_ID = 'iracematv_agenda';
 const EMBEDTV_CHANNEL_PREFIX = 'iracematv_embedtv_channel_';
@@ -646,7 +647,7 @@ function extractEmbedTvErrorSources(html) {
     .map((match) => match[1])
     .filter((value) => isEmbedTvHlsSourceUrl(value)))];
 }
-async function chooseEmbedTvErrorSource(sources, pageUrl) {
+async function chooseEmbedTvErrorSource(sources, pageUrl, timeoutMs = 4000) {
   const candidates = [...new Set((Array.isArray(sources) ? sources : []).filter(isEmbedTvHlsSourceUrl))].slice(0, 8);
   if (!candidates.length) return null;
   const referer = pageUrl || EMBEDTV_SOURCE_REFERER;
@@ -654,7 +655,7 @@ async function chooseEmbedTvErrorSource(sources, pageUrl) {
     try {
       const response = await fetch(source, {
         redirect: 'follow',
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(Math.max(1, Math.min(4000, Number(timeoutMs) || 4000))),
         headers: {
           'User-Agent': DEFAULT_UA,
           Accept: 'application/vnd.apple.mpegurl, application/x-mpegURL, */*',
@@ -683,13 +684,13 @@ async function chooseEmbedTvErrorSource(sources, pageUrl) {
   }));
   return checks.find(Boolean) || null;
 }
-const EMBEDTV_FALLBACK_CONFIG = CONFIG.EMBEDTV_FALLBACK_FILE || 'embedTV.json';
+const EMBEDTV_FALLBACK_CONFIG = CONFIG.EMBEDTV_FALLBACK_FILE || 'Embedtv.json';
 const EMBEDTV_FALLBACK_FILE = path.isAbsolute(String(EMBEDTV_FALLBACK_CONFIG)) ? String(EMBEDTV_FALLBACK_CONFIG) : path.resolve(__dirname, String(EMBEDTV_FALLBACK_CONFIG));
 const EMBEDTV_ERROR_FALLBACKS = new Map();
 const EMBEDTV_VALIDATED_SOURCES = new Set();
 try {
   const fallbackPayload = JSON.parse(fs.readFileSync(EMBEDTV_FALLBACK_FILE, 'utf8'));
-  const fallbackItems = Array.isArray(fallbackPayload) ? fallbackPayload : fallbackPayload.channels;
+  const fallbackItems = Array.isArray(fallbackPayload) ? fallbackPayload : (fallbackPayload.channels || fallbackPayload.items || fallbackPayload.data);
   for (const item of Array.isArray(fallbackItems) ? fallbackItems : []) {
     const id = String(item?.id || '').trim();
     const errorTxt = String(item?.errorTxt || '').trim();
@@ -847,12 +848,15 @@ async function fetchEmbedTvJson(pathname) {
   }
   let lastEmptyPayload = null;
   let lastError = null;
+  const deadlineAt = Date.now() + EMBEDTV_API_TIMEOUT_MS;
   for (const attempt of attempts) {
+    const remainingMs = deadlineAt - Date.now();
+    if (remainingMs <= 0) break;
     const url = new URL(String(attempt.pathname || '').replace(/^\/+/, ''), `${attempt.base}/`);
     try {
       const response = await fetch(url, {
         headers: { accept: 'application/json, text/plain, */*', 'user-agent': DEFAULT_UA, referer: EMBEDTV_SOURCE_REFERER },
-        signal: AbortSignal.timeout(15000)
+        signal: AbortSignal.timeout(Math.min(EMBEDTV_API_TIMEOUT_MS, remainingMs))
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const text = await response.text();
@@ -872,8 +876,9 @@ async function fetchEmbedTvJson(pathname) {
   }
   if (pathname === '/api/channels' && fs.existsSync(EMBEDTV_FALLBACK_FILE)) {
     const payload = JSON.parse(fs.readFileSync(EMBEDTV_FALLBACK_FILE, 'utf8'));
-    sourceLog('embedtv-api-file-fallback', { path: pathname, count: Array.isArray(payload?.channels) ? payload.channels.length : 0 });
-    return Array.isArray(payload) ? payload : { channels: payload.channels || [] };
+    const channels = Array.isArray(payload) ? payload : (payload?.channels || payload?.items || payload?.data || []);
+    sourceLog('embedtv-api-file-fallback', { path: pathname, count: Array.isArray(channels) ? channels.length : 0 });
+    return Array.isArray(payload) ? payload : { ...payload, channels };
   }
   if (lastEmptyPayload) return lastEmptyPayload;
   throw new Error(`EmbedTV ${pathname} indisponível: ${String(lastError?.message || lastError || 'sem resposta').slice(0, 120)}`);
@@ -1746,7 +1751,17 @@ function youtubeVideoId(value) {
   } catch { return null; }
 }
 
-async function streams(type, id, refreshedEmbedTv = false) {
+async function streams(type, id, refreshedEmbedTv = false, deadlineAt = null) {
+  const isEmbedTvRequest = String(id).startsWith(EMBEDTV_CHANNEL_PREFIX) || String(id).startsWith(EMBEDTV_EVENT_PREFIX);
+  if (!isEmbedTvRequest) return streamsInternal(type, id, refreshedEmbedTv, null);
+  const requestDeadlineAt = Number(deadlineAt) || Date.now() + EMBEDTV_API_TIMEOUT_MS;
+  return withTimeout(
+    streamsInternal(type, id, refreshedEmbedTv, requestDeadlineAt),
+    Math.max(1, requestDeadlineAt - Date.now()),
+    { streams: [] }
+  );
+}
+async function streamsInternal(type, id, refreshedEmbedTv = false, requestDeadlineAt = null) {
   if (String(id).startsWith(EVENT_PREFIX)) sourceLog('rei-event-stream-request-start', { id, type });
   const item = await getItem(type, id);
   if (!item) {
@@ -1771,10 +1786,16 @@ async function streams(type, id, refreshedEmbedTv = false) {
       const uniqueEmbeds = [...new Set(embeds)];
       sourceLog('embedtv-stream-selected', { id, channelId: item.id, embedUrls: uniqueEmbeds, mode: 'resolve-direct-source' });
       try {
-        const page = await withTimeout(fetchPublicText(uniqueEmbeds[0], uniqueEmbeds[0]), PAGE_TIMEOUT_MS, null);
+        const remainingMs = requestDeadlineAt ? Math.max(1, requestDeadlineAt - Date.now()) : EMBEDTV_API_TIMEOUT_MS;
+        const page = await withTimeout(
+          fetchPublicText(uniqueEmbeds[0], uniqueEmbeds[0]),
+          Math.min(PAGE_TIMEOUT_MS, 3000, remainingMs),
+          null
+        );
         let internalSrc = await chooseEmbedTvErrorSource(
           extractEmbedTvErrorSources(page?.text),
-          uniqueEmbeds[0]
+          uniqueEmbeds[0],
+          Math.min(4000, Math.max(1, requestDeadlineAt ? requestDeadlineAt - Date.now() : EMBEDTV_API_TIMEOUT_MS))
         );
         if (!internalSrc) {
           internalSrc = embedTvFallbackFor(item, uniqueEmbeds[0]);
@@ -1820,7 +1841,7 @@ async function streams(type, id, refreshedEmbedTv = false) {
       const refreshedItem = await getItem(type, id).catch(() => null);
       if (refreshedItem?.url && refreshedItem.url !== item.url) {
         sourceLog('embedtv-cache-refreshed', { id, previousUrl: item.url, currentUrl: refreshedItem.url });
-        return streams(type, id, true);
+        return streams(type, id, true, requestDeadlineAt);
       }
     }
   }
@@ -1841,10 +1862,12 @@ async function streams(type, id, refreshedEmbedTv = false) {
       const directStreams = new Map();
       for (const { url: playerUrl, candidate } of playerPages) {
         try {
-          const page = await withTimeout(fetchPublicText(playerUrl, playerUrl), PAGE_TIMEOUT_MS, null);
+          const remainingMs = requestDeadlineAt ? Math.max(1, requestDeadlineAt - Date.now()) : EMBEDTV_API_TIMEOUT_MS;
+          const page = await withTimeout(fetchPublicText(playerUrl, playerUrl), Math.min(PAGE_TIMEOUT_MS, 3000, remainingMs), null);
           let internalSrc = await chooseEmbedTvErrorSource(
             extractEmbedTvErrorSources(page?.text),
-            playerUrl
+            playerUrl,
+            Math.min(4000, Math.max(1, requestDeadlineAt ? requestDeadlineAt - Date.now() : EMBEDTV_API_TIMEOUT_MS))
           );
           if (!internalSrc) internalSrc = embedTvFallbackFor(item, playerUrl);
           if (!isEmbedTvHlsSourceUrl(internalSrc)) continue;
@@ -2052,7 +2075,7 @@ async function health() {
   return {
   CHANNEL_CATALOG_ID, LIVE_EVENTS_CATALOG_ID, UPCOMING_EVENTS_CATALOG_ID, ALL_EVENTS_CATALOG_ID, EMBEDTV_CHANNEL_CATALOG_ID, EMBEDTV_EVENTS_CATALOG_ID,
   CHANNEL_PREFIX, EVENT_PREFIX, EMBEDTV_CHANNEL_PREFIX, EMBEDTV_EVENT_PREFIX, handlesCatalog, catalog, meta, streams, health,
-  _test: { embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, eventCaptureTimeoutMs: EVENT_CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, eventPlayerPageStreams, reiProxyUrl, addGloboAlternates, getChannels, getEvents, getEmbedCanaisChannels, getEmbedTvChannels, getEmbedTvEvents, getEmbedTvEpg, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
+  _test: { embedTvApiTimeoutMs: EMBEDTV_API_TIMEOUT_MS, embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, eventCaptureTimeoutMs: EVENT_CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, eventPlayerPageStreams, reiProxyUrl, addGloboAlternates, getChannels, getEvents, getEmbedCanaisChannels, getEmbedTvChannels, getEmbedTvEvents, getEmbedTvEpg, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
 };
 })();
 
@@ -2106,6 +2129,19 @@ const TMDB_API_KEY = CONFIG.TMDB_API_KEY || '';
 const TMDB_LANGUAGE = CONFIG.TMDB_LANGUAGE || 'pt-BR';
 const TMDB_TIMEOUT_MS = Math.min(positiveEnvNumber('TMDB_TIMEOUT_MS', 15000, 15000), 15000);
 const IMDB_METADATA_TIMEOUT_MS = positiveEnvNumber('IMDB_METADATA_TIMEOUT_MS', 4500, 6000);
+function configEnabled(value, fallback = true) {
+  if (value == null) return fallback;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  return !/^(?:false|0|off|no|nao|não)$/i.test(String(value).trim());
+}
+const LOCAL_MEDIA_SEARCH_TIMEOUT_MS = Math.min(
+  positiveEnvNumber('LOCAL_MEDIA_SEARCH_TIMEOUT_MS', Number(CONFIG.LOCAL_MEDIA_SEARCH_TIMEOUT_MS) || 7000, 7000),
+  7000
+);
+const LOCAL_MOVIE_FALLBACK_ENABLED = configEnabled(CONFIG.LOCAL_MOVIE_FALLBACK_ENABLED);
+const LOCAL_SERIES_FALLBACK_ENABLED = configEnabled(CONFIG.LOCAL_SERIES_FALLBACK_ENABLED);
+const LOCAL_ANIME_FALLBACK_ENABLED = configEnabled(CONFIG.LOCAL_ANIME_FALLBACK_ENABLED);
 // Cada fonte tem teto de 25 s; a faixa prioritária inteira também tem janela total de 25 s.
 const IMDB_PRIORITY_PHASE_TIMEOUT_MS = 35000;
 const IMDB_STREAM_TIMEOUT_MS = positiveEnvNumber(
@@ -2941,6 +2977,13 @@ function isAnimeMetadata(result = {}) {
   return explicitAnime || hasAnimeKeyword || hasJapaneseTitle;
 }
 
+function localMediaFallbackEnabled(type, result = {}) {
+  if (isAnimeMetadata(result)) return LOCAL_ANIME_FALLBACK_ENABLED;
+  if (type === 'movie') return LOCAL_MOVIE_FALLBACK_ENABLED;
+  if (type === 'series') return LOCAL_SERIES_FALLBACK_ENABLED;
+  return false;
+}
+
 function selectAnimeProviderTasks(tasks = []) {
   const sourceTasks = Array.isArray(tasks) ? tasks : [];
   return ANIME_PROVIDER_SEARCH_PRIORITY_IDS.flatMap((providerId) =>
@@ -3739,23 +3782,31 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
     });
   }
 
+  if (!localMediaFallbackEnabled(type, tmdbResult)) {
+    sourceLog('local-provider-fallback-disabled', { id: imdb || tmdbId, type, anime: isAnimeMetadata(tmdbResult) });
+    return testOptions.returnOutcome
+      ? { streams: hostedRemoteStreams, outcomes: [], elapsedMs: 0, summary: { streams: hostedRemoteStreams.length } }
+      : hostedRemoteStreams;
+  }
+  const localBudgetMs = Math.max(1, Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, Number(budgetMs) || LOCAL_MEDIA_SEARCH_TIMEOUT_MS));
+  const localDeadlineAt = Date.now() + localBudgetMs;
   const tasks = localProviderTasks || (Array.isArray(testOptions.sourceTasks)
     ? testOptions.sourceTasks
     : buildProviderSourceTasks({ type, imdbId, tmdbResult, idMatch }));
-  const queueRunner = testOptions.parallel ? runSourceQueueParallel : runSourceQueueSerial;
+  const queueRunner = runSourceQueueParallel;
   const result = await queueRunner(
     tasks,
     (source, sourceSignal) => source.run(source, sourceSignal),
     {
       id: imdb || tmdbId,
       type,
-      sourceTimeoutMs: Math.min(25000, DIRECT_PROVIDER_API_TIMEOUT_MS, PROVIDER_SOURCE_TIMEOUT_MS),
-      totalBudgetMs: budgetMs,
-      deadlineAt: testOptions.deadlineAt,
+      sourceTimeoutMs: Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, DIRECT_PROVIDER_API_TIMEOUT_MS, PROVIDER_SOURCE_TIMEOUT_MS),
+      totalBudgetMs: localBudgetMs,
+      deadlineAt: localDeadlineAt,
       eventName: 'provider-source-result',
       signal,
       priorityCount: tasks.filter((task) => PROVIDER_SEARCH_PRIORITY_IDS.includes(String(task.providerId || '').toLowerCase())).length,
-      priorityBudgetMs: Number(testOptions.priorityBudgetMs ?? IMDB_PRIORITY_PHASE_TIMEOUT_MS),
+      priorityBudgetMs: Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, Number(testOptions.priorityBudgetMs ?? LOCAL_MEDIA_SEARCH_TIMEOUT_MS)),
       continuePriorityOnMatch: true,
       stopOnMatch: true
     }
@@ -5351,7 +5402,7 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
     let hostedFailure = null;
     if (XTREAM_API_BASE) {
       try {
-        hostedResult = await hostedSearch(type, id, result, String(id).match(/^tt\d+(?::(\d+):(\d+))?$/i), testOptions.signal || null, Math.min(35000, budgetMs));
+        hostedResult = await hostedSearch(type, id, result, String(id).match(/^tt\d+(?::(\d+):(\d+))?$/i), testOptions.signal || null, Math.min(25000, budgetMs));
       } catch (error) {
         hostedFailure = {
           message: String(error?.message || error).slice(0, 180),
@@ -5421,6 +5472,12 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
       localSourceIds: sourcesForFallback.map((source) => String(source.id || source.sourceName || 'unknown'))
     });
   }
+  if (!localMediaFallbackEnabled(type, result)) {
+    sourceLog('local-xtream-fallback-disabled', { id: String(id), type, anime: isAnimeMetadata(result) });
+    return testOptions.returnOutcome
+      ? { streams: hostedRemoteStreams, outcomes: [], elapsedMs: 0, summary: { streams: hostedRemoteStreams.length } }
+      : hostedRemoteStreams;
+  }
   const candidateXtreamSources = testOptions.sources || XTREAM_SOURCES;
   const sourcesToSearch = testOptions.useHostedApi === true
     ? selectPriorityXtreamSources(candidateXtreamSources)
@@ -5440,12 +5497,13 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
     const aliases = itemVariants.map((name) => name.replace(/\s+\d+$/, '').trim()).filter(Boolean);
     return candidateNames.some((name) => aliases.includes(name));
   };
-  const totalBudgetMs = Math.min(IMDB_STREAM_TIMEOUT_MS, Math.max(1, Number(budgetMs) || IMDB_STREAM_TIMEOUT_MS));
+  const totalBudgetMs = Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, IMDB_STREAM_TIMEOUT_MS, Math.max(1, Number(budgetMs) || LOCAL_MEDIA_SEARCH_TIMEOUT_MS));
+  const localDeadlineAt = Date.now() + totalBudgetMs;
   const alternativeNamesPromise = Array.isArray(testOptions.alternativeTitleVariants)
     ? Promise.resolve(testOptions.alternativeTitleVariants)
     : withTimeout(tmdbAlternativeTitleVariants(type, result), Math.min(2000, totalBudgetMs), []);
 
-  const queueRunner = testOptions.parallel ? runSourceQueueParallel : runSourceQueueSerial;
+  const queueRunner = runSourceQueueParallel;
   const search = await queueRunner(
     sourcesToSearch,
     async (source, signal) => {
@@ -5510,13 +5568,13 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
     {
       id: String(id),
       type,
-      sourceTimeoutMs: Math.min(25000, XTREAM_IMDB_TIMEOUT_MS),
+      sourceTimeoutMs: Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, XTREAM_IMDB_TIMEOUT_MS),
       totalBudgetMs,
-      deadlineAt: testOptions.deadlineAt,
+      deadlineAt: localDeadlineAt,
       eventName: 'xtream-source-result',
       signal: testOptions.signal,
       priorityCount: sourcesToSearch.filter((source) => XTREAM_SEARCH_PRIORITY_IDS.includes(String(source?.id || '').toLowerCase())).length,
-      priorityBudgetMs: Number(testOptions.priorityBudgetMs ?? IMDB_PRIORITY_PHASE_TIMEOUT_MS),
+      priorityBudgetMs: Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, Number(testOptions.priorityBudgetMs ?? LOCAL_MEDIA_SEARCH_TIMEOUT_MS)),
       continuePriorityOnMatch: true,
       stopOnMatch: true
     }
@@ -8773,6 +8831,8 @@ module.exports._test = {
     loadPlaylistToDisk,
     sourceTimeouts: Object.freeze({
       searchTotalMs: IMDB_STREAM_TIMEOUT_MS,
+      localMediaSearchMs: LOCAL_MEDIA_SEARCH_TIMEOUT_MS,
+      embedTvApiMs: LiveTv._test.embedTvApiTimeoutMs,
       xtreamPerSourceMs: XTREAM_IMDB_TIMEOUT_MS,
       providerPerSourceMs: PROVIDER_SOURCE_TIMEOUT_MS,
       directProviderPerSourceMs: DIRECT_PROVIDER_API_TIMEOUT_MS,
@@ -8829,6 +8889,8 @@ module.exports._test = {
     selectPriorityXtreamSources,
     ANIME_PROVIDER_SEARCH_PRIORITY_IDS,
     isAnimeMetadata,
+    localMediaFallbackEnabled,
+    localFallbackSettings: Object.freeze({ movie: LOCAL_MOVIE_FALLBACK_ENABLED, series: LOCAL_SERIES_FALLBACK_ENABLED, anime: LOCAL_ANIME_FALLBACK_ENABLED }),
     selectAnimeProviderTasks,
     selectAnimeSearchProviderTasks,
     buildImdbSourcePlan,
