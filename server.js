@@ -736,6 +736,11 @@ function embedTvLocalFileStream(id, item, url, reason) {
     behaviorHints: { notWebReady: true, proxyHeaders: { request } }
   }] };
 }
+function embedTvMainCatalogJsonFallback(id, item) {
+  if (!String(id).startsWith(CHANNEL_PREFIX)) return null;
+  const url = embedTvLocalDirectUrlFor(item);
+  return url ? embedTvLocalFileStream(id, item, url, 'main-catalog-no-direct-media') : null;
+}
 function isDirectPlaybackUrl(value) {
   return typeof value === 'string' && /^https?:\/\//i.test(value) && !isLikelyInvalidPlaybackUrl(value) && !/[\s<>"']/u.test(value) && /\.(?:m3u8|mpd|mp4|m4v|ts)(?:$|[?#])/i.test(value);
 }
@@ -2117,6 +2122,9 @@ async function streamsInternal(type, id, refreshedEmbedTv = false, requestDeadli
     }] };
   }
 
+  const mainCatalogJsonFallback = embedTvMainCatalogJsonFallback(id, item);
+  if (mainCatalogJsonFallback) return mainCatalogJsonFallback;
+
   if (isReiItem) {
     sourceLog('rei-direct-only-no-playback', {
       id,
@@ -2158,7 +2166,7 @@ async function health() {
   return {
   CHANNEL_CATALOG_ID, LIVE_EVENTS_CATALOG_ID, UPCOMING_EVENTS_CATALOG_ID, ALL_EVENTS_CATALOG_ID, EMBEDTV_CHANNEL_CATALOG_ID, EMBEDTV_EVENTS_CATALOG_ID,
   CHANNEL_PREFIX, EVENT_PREFIX, EMBEDTV_CHANNEL_PREFIX, EMBEDTV_EVENT_PREFIX, handlesCatalog, catalog, meta, streams, health,
-  _test: { embedTvApiBase: EMBEDTV_API_BASE, embedTvFallbackBase: EMBEDTV_FALLBACK_BASE, embedTvApiTimeoutMs: EMBEDTV_API_TIMEOUT_MS, embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, eventCaptureTimeoutMs: EVENT_CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, embedTvLocalDirectUrlFor, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, eventPlayerPageStreams, reiProxyUrl, addGloboAlternates, getChannels, getEvents, getEmbedCanaisChannels, getEmbedTvChannels, getEmbedTvEvents, getEmbedTvEpg, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
+  _test: { embedTvApiBase: EMBEDTV_API_BASE, embedTvFallbackBase: EMBEDTV_FALLBACK_BASE, embedTvApiTimeoutMs: EMBEDTV_API_TIMEOUT_MS, embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, eventCaptureTimeoutMs: EVENT_CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, embedTvLocalDirectUrlFor, embedTvMainCatalogJsonFallback, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, eventPlayerPageStreams, reiProxyUrl, addGloboAlternates, getChannels, getEvents, getEmbedCanaisChannels, getEmbedTvChannels, getEmbedTvEvents, getEmbedTvEpg, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
 };
 })();
 
