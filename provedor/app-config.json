@@ -7,7 +7,7 @@
   "CACHE_TTL_MS": "900000",
   "CATALOG_LIMIT": "0",
   "MAX_M3U_ITEMS": "0",
-  "IMDB_STREAM_TIMEOUT_MS": 40000,
+  "IMDB_STREAM_TIMEOUT_MS": 50000,
   "XTREAM_TIMEOUT_MS": 25000,
   "PROVIDERS_API_BASE": "https://apiprovedor-production.up.railway.app/",
   "XTREAM_API_BASE": "https://apixtream-production.up.railway.app",
