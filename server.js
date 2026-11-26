@@ -1972,7 +1972,14 @@ async function streamsInternal(type, id, refreshedEmbedTv = false, requestDeadli
             playerUrl,
             Math.min(4000, Math.max(1, requestDeadlineAt ? requestDeadlineAt - Date.now() : EMBEDTV_API_TIMEOUT_MS))
           );
-          if (!internalSrc) internalSrc = embedTvFallbackFor(item, playerUrl);
+          if (!internalSrc) {
+            const fallbackCandidate = embedTvFallbackFor(item, playerUrl);
+            internalSrc = await chooseEmbedTvErrorSource(
+              fallbackCandidate ? [fallbackCandidate] : [],
+              playerUrl,
+              Math.min(4000, Math.max(1, requestDeadlineAt ? requestDeadlineAt - Date.now() : EMBEDTV_API_TIMEOUT_MS))
+            );
+          }
           if (!isEmbedTvHlsSourceUrl(internalSrc)) continue;
           const declaredReferer = page?.text?.match(/(?:const|let|var)\s+referer\s*=\s*["']([^"']+)/i)?.[1];
           const sourceReferer = declaredReferer || EMBEDTV_SOURCE_REFERER;
@@ -2032,18 +2039,6 @@ async function streamsInternal(type, id, refreshedEmbedTv = false, requestDeadli
           behaviorHints: { proxyHeaders: { request } }
         };
       }) };
-    }
-    if (String(id).startsWith(EVENT_PREFIX)) {
-      const playerPages = eventPlayerPageStreams(item);
-      if (playerPages.length) {
-        sourceLog('rei-event-player-page-fallback', {
-          id,
-          count: playerPages.length,
-          names: playerPages.map((stream) => stream.name),
-          reason: 'direct-media-not-captured'
-        });
-        return { streams: playerPages };
-      }
     }
   }
   if (normalizeText(item.name || item.title) === 'globo') {
@@ -2130,21 +2125,6 @@ async function streamsInternal(type, id, refreshedEmbedTv = false, requestDeadli
       reason: 'nenhuma mídia direta m3u8/mpd/mp4 encontrada; página externa descartada'
     });
     return { streams: [] };
-  }
-
-  // O player hospedado continua sendo uma opção válida quando a playlist HLS
-  // está protegida ou ainda não foi publicada; não descarte o canal/evento.
-  if (candidates.length && (String(id).startsWith(CHANNEL_PREFIX) || String(id).startsWith(EVENT_PREFIX) || String(id).startsWith(EMBEDTV_CHANNEL_PREFIX) || String(id).startsWith(EMBEDTV_EVENT_PREFIX))) {
-    const pages = [...new Map(candidates
-      .map((candidate) => ({ url: candidate.pageUrl || candidate.url, candidate }))
-      .filter(({ url }) => /^https?:\/\//i.test(String(url)))
-      .map((entry) => [entry.url, entry])).values()];
-    if (pages.length) return { streams: pages.slice(0, 8).map(({ url, candidate }) => ({
-      name: `▶️ ${candidate.label || 'EmbedTV'}`,
-      title: `${item.name || item.title || 'Transmissão'} • Player externo`,
-      url,
-      behaviorHints: { notWebReady: true }
-    })) };
   }
 
   return { streams: [] };
