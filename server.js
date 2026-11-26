@@ -2173,7 +2173,7 @@ const LOCAL_MOVIE_FALLBACK_ENABLED = configEnabled(CONFIG.LOCAL_MOVIE_FALLBACK_E
 const LOCAL_SERIES_FALLBACK_ENABLED = configEnabled(CONFIG.LOCAL_SERIES_FALLBACK_ENABLED);
 const LOCAL_ANIME_FALLBACK_ENABLED = configEnabled(CONFIG.LOCAL_ANIME_FALLBACK_ENABLED);
 // Cada fonte tem teto de 25 s; a faixa prioritária inteira também tem janela total de 25 s.
-const IMDB_PRIORITY_PHASE_TIMEOUT_MS = 35000;
+const IMDB_PRIORITY_PHASE_TIMEOUT_MS = 25000;
 const IMDB_STREAM_TIMEOUT_MS = positiveEnvNumber(
   'IMDB_STREAM_TIMEOUT_MS',
   Number(CONFIG.IMDB_STREAM_TIMEOUT_MS) || 3_000_000,
@@ -3713,6 +3713,7 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
   let hostedFallbackReason = '';
   let hostedRemoteStreams = [];
   let localProviderTasks = null;
+  let hostedApiElapsedMs = 0;
   if (testOptions.useHostedApi === true) {
     const hostedSearch = testOptions.hostedProviderSearch || searchHostedProviders;
     const priority = isAnimeMetadata(tmdbResult)
@@ -3744,6 +3745,7 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
     } else {
       hostedFailure = { message: 'PROVIDERS_API_BASE não configurada', timeout: false };
     }
+    hostedApiElapsedMs = Number(hostedResult?.elapsedMs) || Date.now() - apiStartedAt;
     const remoteStreams = Array.isArray(hostedResult?.streams) ? hostedResult.streams : [];
     hostedRemoteStreams = remoteStreams;
     const failedBatches = Array.isArray(hostedResult?.failedBatches) ? hostedResult.failedBatches : [];
@@ -3816,6 +3818,15 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
     sourceLog('local-provider-fallback-disabled', { id: imdb || tmdbId, type, anime: isAnimeMetadata(tmdbResult) });
     return testOptions.returnOutcome
       ? { streams: hostedRemoteStreams, outcomes: [], elapsedMs: 0, summary: { streams: hostedRemoteStreams.length } }
+      : hostedRemoteStreams;
+  }
+  if (testOptions.deferLocalFallback === true) {
+    sourceLog('local-provider-fallback-deferred', {
+      id: imdb || tmdbId, type, reason: hostedFallbackReason || 'priority-phase-pending',
+      elapsedMs: hostedApiElapsedMs, waitForCombinedPriorityResult: true
+    });
+    return testOptions.returnOutcome
+      ? { streams: hostedRemoteStreams, outcomes: [], elapsedMs: hostedApiElapsedMs, summary: { streams: hostedRemoteStreams.length, localFallbackDeferred: true } }
       : hostedRemoteStreams;
   }
   const localBudgetMs = Math.max(1, Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, Number(budgetMs) || LOCAL_MEDIA_SEARCH_TIMEOUT_MS));
@@ -5419,6 +5430,7 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
   if (!result || !['movie', 'series'].includes(type)) return [];
   let hostedFallbackReason = '';
   let hostedRemoteStreams = [];
+  let hostedApiElapsedMs = 0;
   if (testOptions.useHostedApi === true) {
     const apiStartedAt = Date.now();
     const hostedSearch = testOptions.hostedXtreamSearch || searchHostedXtream;
@@ -5445,6 +5457,7 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
     } else {
       hostedFailure = { message: 'XTREAM_API_BASE não configurada', timeout: false };
     }
+    hostedApiElapsedMs = Number(hostedResult?.elapsedMs) || Date.now() - apiStartedAt;
     const remote = Array.isArray(hostedResult?.streams) ? hostedResult.streams : [];
     hostedRemoteStreams = remote;
     const failedSources = Array.isArray(hostedResult?.failedSources) ? hostedResult.failedSources : [];
@@ -5506,6 +5519,15 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
     sourceLog('local-xtream-fallback-disabled', { id: String(id), type, anime: isAnimeMetadata(result) });
     return testOptions.returnOutcome
       ? { streams: hostedRemoteStreams, outcomes: [], elapsedMs: 0, summary: { streams: hostedRemoteStreams.length } }
+      : hostedRemoteStreams;
+  }
+  if (testOptions.deferLocalFallback === true) {
+    sourceLog('local-xtream-fallback-deferred', {
+      id: String(id), type, reason: hostedFallbackReason || 'priority-phase-pending',
+      elapsedMs: hostedApiElapsedMs, waitForCombinedPriorityResult: true
+    });
+    return testOptions.returnOutcome
+      ? { streams: hostedRemoteStreams, outcomes: [], elapsedMs: hostedApiElapsedMs, summary: { streams: hostedRemoteStreams.length, localFallbackDeferred: true } }
       : hostedRemoteStreams;
   }
   const candidateXtreamSources = testOptions.sources || XTREAM_SOURCES;
@@ -8021,10 +8043,10 @@ builder.defineStreamHandler(
         // especializados; Xtream fica fora dessa busca. Demais títulos seguem a regra normal.
         const sourcePlan = buildImdbSourcePlan({ result, providerTasks: allProviderTasks, xtreamSources: XTREAM_SOURCES });
         const providerPriorityTasks = sourcePlan.providerTasks;
-        const providerFallbackTasks = [];
+        const providerFallbackTasks = providerPriorityTasks;
         const xtreamPrioritySources = sourcePlan.xtreamSources
           .map((source, index) => ({ ...source, priorityIndex: index }));
-        const xtreamFallbackSources = [];
+        const xtreamFallbackSources = xtreamPrioritySources;
         const priorityStartedAt = Date.now();
         const priorityDeadlineAt = priorityStartedAt + Math.max(0, Math.min(IMDB_PRIORITY_PHASE_TIMEOUT_MS, providerBudgetMs));
         const priorityBudgetMs = Math.max(0, priorityDeadlineAt - priorityStartedAt);
@@ -8041,6 +8063,7 @@ builder.defineStreamHandler(
                   bypassCache: true,
                   suppressSummary: true,
                   returnOutcome: true,
+                  deferLocalFallback: true,
                   deadlineAt: priorityDeadlineAt,
                   sourcesAvailable: providerPriorityTasks.length
                 })
@@ -8052,6 +8075,7 @@ builder.defineStreamHandler(
                   parallel: true,
                   suppressSummary: true,
                   returnOutcome: true,
+                  deferLocalFallback: true,
                   deadlineAt: priorityDeadlineAt,
                   sourcesAvailable: xtreamPrioritySources.length
                 })
@@ -8121,32 +8145,40 @@ builder.defineStreamHandler(
           parallel: true
         });
 
-        if (!priorityHasMedia && result && tmdbResultTitle(result)) {
-          const fallbackProviderBudgetMs = providerBudgetRemainingMs();
-          if (providerFallbackTasks.length && fallbackProviderBudgetMs > 0) {
-            try {
-              providerApiStreams = await _getDirectProviderApiStreams(
-                type, id, result, idMatch, null, fallbackProviderBudgetMs,
-                { sourceTasks: providerFallbackTasks, bypassCache: true, sourcesAvailable: providerFallbackTasks.length }
-              );
-            } catch (error) {
-              sourceLog('provider-fallback-error', { id: requestSourceId, message: error.message });
-            }
+        if (!priorityHasMedia && result && tmdbResultTitle(result)
+          && localMediaFallbackEnabled(type, result)
+          && (providerFallbackTasks.length || xtreamFallbackSources.length)) {
+          const priorityWaitMs = Math.max(0, priorityDeadlineAt - Date.now());
+          if (priorityWaitMs > 0) {
+            sourceLog('local-fallback-waiting-for-priority-deadline', {
+              id: requestSourceId, waitMs: priorityWaitMs, deadlineMs: IMDB_PRIORITY_PHASE_TIMEOUT_MS
+            });
+            await new Promise((resolve) => setTimeout(resolve, priorityWaitMs));
           }
-          if (shouldSearchXtreamAfterProviders(providerApiStreams) && !xtreamEntries.length && xtreamFallbackSources.length) {
-            const fallbackXtreamBudgetMs = providerBudgetRemainingMs();
-            if (fallbackXtreamBudgetMs > 0) {
-              try {
-                xtreamEntries = await findXtreamEntriesForImdb(type, id, result, fallbackXtreamBudgetMs, {
-                  sources: xtreamFallbackSources,
-                  sourcesAvailable: xtreamFallbackSources.length
-                });
-              } catch (error) {
-                sourceLog('xtream-fallback-error', { id: requestSourceId, message: error.message });
-              }
-            }
-          } else if (providerApiStreams.length) {
-            logDeferred(xtreamFallbackSources, 'xtream-source-result', 'mídia encontrada no fallback provider');
+          const localFallbackBudgetMs = Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, providerBudgetRemainingMs());
+          if (localFallbackBudgetMs > 0) {
+            sourceLog('local-fallback-stage-start', {
+              id: requestSourceId, type, budgetMs: localFallbackBudgetMs,
+              reason: 'Xtream e provedores hospedados concluíram sem streams',
+              providerTasks: providerFallbackTasks.length, xtreamSources: xtreamFallbackSources.length
+            });
+            const providerFallbackPromise = providerFallbackTasks.length
+              ? _getDirectProviderApiStreams(type, id, result, idMatch, null, localFallbackBudgetMs, {
+                  sourceTasks: providerFallbackTasks, bypassCache: true, sourcesAvailable: providerFallbackTasks.length
+                })
+              : Promise.resolve([]);
+            const xtreamFallbackPromise = xtreamFallbackSources.length
+              ? findXtreamEntriesForImdb(type, id, result, localFallbackBudgetMs, {
+                  sources: xtreamFallbackSources, sourcesAvailable: xtreamFallbackSources.length
+                })
+              : Promise.resolve([]);
+            const [providerFallbackResult, xtreamFallbackResult] = await Promise.allSettled([
+              providerFallbackPromise, xtreamFallbackPromise
+            ]);
+            if (providerFallbackResult.status === 'fulfilled') providerApiStreams = providerFallbackResult.value;
+            else sourceLog('provider-fallback-error', { id: requestSourceId, message: providerFallbackResult.reason?.message || 'falha no fallback local' });
+            if (xtreamFallbackResult.status === 'fulfilled') xtreamEntries = xtreamFallbackResult.value;
+            else sourceLog('xtream-fallback-error', { id: requestSourceId, message: xtreamFallbackResult.reason?.message || 'falha no fallback local' });
           }
         }
 
