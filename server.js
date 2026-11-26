@@ -7,12 +7,14 @@ const { AsyncLocalStorage } = require('node:async_hooks');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const vm = require('node:vm');
+const vm = require('vm');
 const net = require('node:net');
 const { spawn } = require('node:child_process');
 const { app: CONFIG, XTREAM_SOURCES: CONFIGURED_XTREAM_SOURCES, EPG_SOURCES: CONFIGURED_EPG_SOURCES } = require('./provedor');
 const readline = require('readline');
 const { Readable } = require('stream');
+// This toggle controls local VOD/provider fallbacks only; live-TV catalogs and
+// EmbedTV channel/error.txt fallbacks intentionally remain available when false.
 const LOCAL_FALLBACKS_ENABLED = CONFIG.LOCAL_FALLBACKS_ENABLED !== false;
 const { addonBuilder } = require('stremio-addon-sdk');
 const express = require('express');
