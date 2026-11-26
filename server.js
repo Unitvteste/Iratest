@@ -732,12 +732,52 @@ function embedTvLocalFileStream(id, item, url, reason) {
     name: '📡 EmbedTV • Link direto do JSON',
     title: ['IracemaTV', `Canal • ${item.name || item.title || 'Canal'}`, 'Provedor • EmbedTV', 'Ao Vivo'].join('\n'),
     url,
-    ...(isDirectPlaybackUrl(url) ? { type: 'hls' } : {}),
+    type: 'hls',
     behaviorHints: { notWebReady: true, proxyHeaders: { request } }
   }] };
 }
 function isDirectPlaybackUrl(value) {
   return typeof value === 'string' && /^https?:\/\//i.test(value) && !isLikelyInvalidPlaybackUrl(value) && !/[\s<>"']/u.test(value) && /\.(?:m3u8|mpd|mp4|m4v|ts)(?:$|[?#])/i.test(value);
+}
+async function validateEmbedTvDirectPlaybackUrl(value, referer = EMBEDTV_SOURCE_REFERER, timeoutMs = 1800) {
+  if (!isDirectPlaybackUrl(value)) return null;
+  try {
+    const response = await fetch(value, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(Math.max(1, Math.min(2500, Number(timeoutMs) || 1800))),
+      headers: {
+        'User-Agent': DEFAULT_UA,
+        Accept: 'application/vnd.apple.mpegurl, application/dash+xml, video/*, application/octet-stream, */*',
+        Referer: referer,
+        Origin: originOf(referer),
+        Range: 'bytes=0-1023'
+      }
+    });
+    if (!response.ok && response.status !== 206) return null;
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+    const reader = response.body?.getReader();
+    let firstChunk = Buffer.alloc(0);
+    if (reader) {
+      try {
+        const result = await reader.read();
+        if (result.value) firstChunk = Buffer.from(result.value);
+      } finally {
+        await reader.cancel().catch(() => {});
+      }
+    }
+    const text = firstChunk.toString('utf8');
+    const path = (() => { try { return new URL(value).pathname.toLowerCase(); } catch { return ''; } })();
+    const valid = path.endsWith('.m3u8')
+      ? /mpegurl|x-mpegurl/.test(contentType) || /^\uFEFF?\s*#EXTM3U/i.test(text)
+      : path.endsWith('.mpd')
+        ? /dash\+xml/.test(contentType) || /<MPD(?:\s|>)/i.test(text)
+        : /\.(?:mp4|m4v)(?:$|[?#])/.test(path)
+          ? /video\/(?:mp4|x-m4v)/.test(contentType) || firstChunk.toString('latin1', 4, 8) === 'ftyp'
+          : /video\/(?:mp2t|mpg|mpeg)/.test(contentType) || (firstChunk.length >= 189 && firstChunk[0] === 0x47 && firstChunk[188] === 0x47);
+    return valid ? (response.url || value) : null;
+  } catch {
+    return null;
+  }
 }
 
 function originOf(value) {
@@ -1801,6 +1841,32 @@ async function streamsInternal(type, id, refreshedEmbedTv = false, requestDeadli
     if (item.__embedTvLocalFallback && localDirectUrl) {
       return embedTvLocalFileStream(id, item, localDirectUrl, 'api-unavailable');
     }
+    const directApiCandidate = candidates.find((candidate) => isDirectPlaybackUrl(candidate.url));
+    if (directApiCandidate) {
+      const referer = directApiCandidate.referer || EMBEDTV_SOURCE_REFERER;
+      const remainingMs = requestDeadlineAt ? Math.max(1, requestDeadlineAt - Date.now()) : 1800;
+      const validatedDirectUrl = await validateEmbedTvDirectPlaybackUrl(
+        directApiCandidate.url, referer, Math.min(1800, remainingMs)
+      );
+      if (validatedDirectUrl) {
+        const request = {
+          'User-Agent': DEFAULT_UA,
+          Accept: 'application/vnd.apple.mpegurl, application/x-mpegURL, */*',
+          Referer: referer
+        };
+        const origin = originOf(referer);
+        if (origin) request.Origin = origin;
+        sourceLog('embedtv-direct-media-selected', { id, channelId: item.id, mode: 'validated-api-direct-media' });
+        return { streams: [{
+          name: '📡 EmbedTV • Stream direto',
+          title: ['IracemaTV', `Canal • ${item.name || item.title || 'Canal'}`, 'Provedor • EmbedTV', 'Ao Vivo'].join('\n'),
+          url: validatedDirectUrl,
+          ...( /\.m3u8(?:$|[?#])/i.test(validatedDirectUrl) ? { type: 'hls' } : {}),
+          behaviorHints: { notWebReady: true, proxyHeaders: { request } }
+        }] };
+      }
+      sourceLog('embedtv-direct-media-rejected', { id, channelId: item.id, reason: 'response-not-valid-media' });
+    }
     sourceLog('embedtv-stream-candidates', {
       id,
       channelId: item.id,
@@ -1825,7 +1891,12 @@ async function streamsInternal(type, id, refreshedEmbedTv = false, requestDeadli
           Math.min(4000, Math.max(1, requestDeadlineAt ? requestDeadlineAt - Date.now() : EMBEDTV_API_TIMEOUT_MS))
         );
         if (!internalSrc) {
-          internalSrc = embedTvFallbackFor(item, uniqueEmbeds[0]);
+          const fallbackCandidate = embedTvFallbackFor(item, uniqueEmbeds[0]);
+          internalSrc = await chooseEmbedTvErrorSource(
+            fallbackCandidate ? [fallbackCandidate] : [],
+            uniqueEmbeds[0],
+            Math.min(4000, Math.max(1, requestDeadlineAt ? requestDeadlineAt - Date.now() : EMBEDTV_API_TIMEOUT_MS))
+          );
           if (internalSrc) sourceLog('embedtv-fallback-source-selected', { id, embedUrl: uniqueEmbeds[0], internalSrc });
         }
         sourceLog('embedtv-page-source', {
@@ -1874,6 +1945,8 @@ async function streamsInternal(type, id, refreshedEmbedTv = false, requestDeadli
         return streams(type, id, true, requestDeadlineAt);
       }
     }
+    sourceLog('embedtv-no-external-player-fallback', { id, channelId: item.id, reason: 'no-direct-source-or-json-entry' });
+    return { streams: [] };
   }
   const youtube = isReiItem ? [] : [...new Set(candidates.map((candidate) => youtubeVideoId(candidate.url)).filter(Boolean))];
   if (youtube.length) {
@@ -2108,6 +2181,35 @@ async function health() {
   _test: { embedTvApiBase: EMBEDTV_API_BASE, embedTvFallbackBase: EMBEDTV_FALLBACK_BASE, embedTvApiTimeoutMs: EMBEDTV_API_TIMEOUT_MS, embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, eventCaptureTimeoutMs: EVENT_CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, embedTvLocalDirectUrlFor, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, eventPlayerPageStreams, reiProxyUrl, addGloboAlternates, getChannels, getEvents, getEmbedCanaisChannels, getEmbedTvChannels, getEmbedTvEvents, getEmbedTvEpg, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
 };
 })();
+
+async function runLocalFallbackWindows({ id, type, remainingBudget, providerSearch, xtreamSearch, providerTasks = 0, xtreamSources = 0 }) {
+  let providerStreams = [];
+  let xtreamStreams = [];
+  let attempts = 0;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    if (providerStreams.length + xtreamStreams.length > 0) break;
+    const budgetMs = Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, Math.max(0, Number(remainingBudget()) || 0));
+    if (budgetMs <= 0) break;
+    attempts = attempt;
+    sourceLog('local-fallback-stage-start', {
+      id, type, attempt, maxAttempts: 2, budgetMs,
+      reason: 'Xtream e provedores hospedados concluíram sem streams', providerTasks, xtreamSources
+    });
+    const [providerResult, xtreamResult] = await Promise.allSettled([
+      typeof providerSearch === 'function' ? providerSearch(budgetMs, attempt) : Promise.resolve([]),
+      typeof xtreamSearch === 'function' ? xtreamSearch(budgetMs, attempt) : Promise.resolve([])
+    ]);
+    providerStreams = providerResult.status === 'fulfilled' && Array.isArray(providerResult.value) ? providerResult.value : [];
+    xtreamStreams = xtreamResult.status === 'fulfilled' && Array.isArray(xtreamResult.value) ? xtreamResult.value : [];
+    if (providerResult.status === 'rejected') sourceLog('provider-fallback-error', { id, attempt, message: providerResult.reason?.message || 'falha no fallback local' });
+    if (xtreamResult.status === 'rejected') sourceLog('xtream-fallback-error', { id, attempt, message: xtreamResult.reason?.message || 'falha no fallback local' });
+    sourceLog('local-fallback-stage-complete', {
+      id, type, attempt, budgetMs, providerStreams: providerStreams.length, xtreamStreams: xtreamStreams.length,
+      retryScheduled: providerStreams.length + xtreamStreams.length === 0 && attempt < 2
+    });
+  }
+  return { providerStreams, xtreamStreams, attempts };
+}
 
 const upstreamAgent = new Agent({
   // Render pode tentar IPv6 antes do IPv4 e deixar o TMDB aguardando até expirar.
@@ -8155,31 +8257,22 @@ builder.defineStreamHandler(
             });
             await new Promise((resolve) => setTimeout(resolve, priorityWaitMs));
           }
-          const localFallbackBudgetMs = Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, providerBudgetRemainingMs());
-          if (localFallbackBudgetMs > 0) {
-            sourceLog('local-fallback-stage-start', {
-              id: requestSourceId, type, budgetMs: localFallbackBudgetMs,
-              reason: 'Xtream e provedores hospedados concluíram sem streams',
-              providerTasks: providerFallbackTasks.length, xtreamSources: xtreamFallbackSources.length
-            });
-            const providerFallbackPromise = providerFallbackTasks.length
-              ? _getDirectProviderApiStreams(type, id, result, idMatch, null, localFallbackBudgetMs, {
-                  sourceTasks: providerFallbackTasks, bypassCache: true, sourcesAvailable: providerFallbackTasks.length
-                })
-              : Promise.resolve([]);
-            const xtreamFallbackPromise = xtreamFallbackSources.length
-              ? findXtreamEntriesForImdb(type, id, result, localFallbackBudgetMs, {
-                  sources: xtreamFallbackSources, sourcesAvailable: xtreamFallbackSources.length
-                })
-              : Promise.resolve([]);
-            const [providerFallbackResult, xtreamFallbackResult] = await Promise.allSettled([
-              providerFallbackPromise, xtreamFallbackPromise
-            ]);
-            if (providerFallbackResult.status === 'fulfilled') providerApiStreams = providerFallbackResult.value;
-            else sourceLog('provider-fallback-error', { id: requestSourceId, message: providerFallbackResult.reason?.message || 'falha no fallback local' });
-            if (xtreamFallbackResult.status === 'fulfilled') xtreamEntries = xtreamFallbackResult.value;
-            else sourceLog('xtream-fallback-error', { id: requestSourceId, message: xtreamFallbackResult.reason?.message || 'falha no fallback local' });
-          }
+          const localFallback = await runLocalFallbackWindows({
+            id: requestSourceId, type, remainingBudget: providerBudgetRemainingMs,
+            providerTasks: providerFallbackTasks.length, xtreamSources: xtreamFallbackSources.length,
+            providerSearch: providerFallbackTasks.length
+              ? (budgetMs) => _getDirectProviderApiStreams(type, id, result, idMatch, null, budgetMs, {
+                sourceTasks: providerFallbackTasks, bypassCache: true, sourcesAvailable: providerFallbackTasks.length
+              })
+              : null,
+            xtreamSearch: xtreamFallbackSources.length
+              ? (budgetMs) => findXtreamEntriesForImdb(type, id, result, budgetMs, {
+                sources: xtreamFallbackSources, sourcesAvailable: xtreamFallbackSources.length
+              })
+              : null
+          });
+          providerApiStreams = localFallback.providerStreams;
+          xtreamEntries = localFallback.xtreamStreams;
         }
 
         const directStreamsFound = providerApiStreams.length + xtreamEntries.length > 0;
@@ -8959,6 +9052,7 @@ module.exports._test = {
     runSourceQueueSerial,
     runSourceQueueParallel,
     runPrioritySearchesInParallel,
+    runLocalFallbackWindows,
     parseDeclaredMediaSources,
     titleVariants,
     findM3uMatchesForTmdb,
