@@ -1,31 +1,25 @@
 {
   "PORT": "7000",
-  "M3U_URL": "http://smart.cms-central.ovh:80/get.php?username=Voana2025&password=Raquel2025&type=m3u_plus",
+  "M3U_URL": "./playlist-real-full.m3u",
   "TMDB_API_KEY": "12a263eb78c5a66bf238a09bf48a413b",
   "TMDB_LANGUAGE": "pt-BR",
   "CONTENT_PROFILE": "clean",
   "CACHE_TTL_MS": "900000",
   "CATALOG_LIMIT": "0",
   "MAX_M3U_ITEMS": "0",
-  "IMDB_STREAM_TIMEOUT_MS": 40000,
+  "IMDB_STREAM_TIMEOUT_MS": 25000,
   "XTREAM_TIMEOUT_MS": 25000,
-  "PROVIDERS_API_BASE": "https://apiprovedor-production.up.railway.app/",
-  "XTREAM_API_BASE": "https://apixtream-production.up.railway.app",
-  "TV_API_BASE": "https://apitvaddon-production.up.railway.app/api/v1",
   "PROVIDER_SEARCH_PRIORITY": [
-    "cineveo",
-    "redecanais",
-    "redecanais-deals",
-    "brflix",
-    "vizer",
     "megaembed",
     "embedmovies",
+    "redeflix",
     "playerflix",
     "myembed",
     "fshd",
     "pomfy",
     "rivo",
     "vaqueirofilmes",
+    "pobreflix",
     "framextv"
   ],
   "XTREAM_SEARCH_PRIORITY": [
@@ -43,7 +37,6 @@
     "clbtw",
     "azqkdk-xtream",
     "cdn4k-live-89625",
-    "cdn4k-live-aripai",
     "primary",
     "one-tv",
     "oneplayfastpro",
@@ -51,9 +44,7 @@
     "env-novomundo",
     "lbplay"
   ],
-  "LIVE_TV_API_BASE": "https://apitvaddon-production.up.railway.app/api/v1",
-  "LIVE_TV_FALLBACK_BASE": "https://api.reidoscanais.im",
-  "LIVE_TV_API_TIMEOUT_MS": "30000",
+  "LIVE_TV_API_BASE": "https://api.reidoscanais.my",
   "LIVE_TV_CACHE_MS": "300000",
   "LIVE_TV_RESOLVE_CACHE_MS": "600000",
   "LIVE_TV_MAX_CAPTURE_PAGES": "8",
@@ -64,9 +55,8 @@
   "PROVIDER_RESOLVER_MAX_PAGES": "8",
   "M3U_SOURCE_TIMEOUT_MS": 25000,
   "M3U_TIMEOUT_MS": 25000,
-  "EMBEDTV_API_BASE": "https://apitvaddon-production.up.railway.app/api/v1",
-  "EMBEDTV_FALLBACK_BASE": "https://embedtv.cc",
-  "EMBEDTV_SOURCE_REFERER": "https://embedtv.cc/",
+  "EMBEDTV_API_BASE": "https://embedtv.my",
+  "EMBEDTV_SOURCE_REFERER": "https://embedtv.my/",
   "EMBEDTV_FALLBACK_FILE": "./embedTV.json",
   "M3U_SOURCES": [
     {
@@ -133,27 +123,6 @@
       "id": "azqkdk",
       "name": "AZQKDK M3U",
       "url": "http://azqkdk.club/get.php?username=1705821282&password=centralsegura&type=m3u_plus"
-    },
-    {
-      "id": "ovo54",
-      "name": "OVO54 M3U",
-      "url": "http://ovo54.sbs:80/get.php?username=venykl9qd101&password=gold81500&type=m3u_plus"
-    },
-    {
-      "id": "abtac1n3pro",
-      "name": "ABTAC1N3 Pro M3U",
-      "url": "http://abtac1n3pro.me:80/get.php?username=918762&password=n4qBuH&type=m3u_plus&output=ts"
-    },
-    {
-      "id": "projetotourov2",
-      "name": "Projeto Ouro V2 M3U",
-      "url": "http://projetotourov2.pro/get.php?username=96275336183&password=43834496962&type=m3u_plus"
-    },
-    {
-      "id": "azplaytela",
-      "name": "AzPlay Tela M3U",
-      "url": "http://azplaytela.top/get.php?username=ramaral1107&password=theo2601&type=m3u_plus",
-      "enabled": false
     }
   ],
   "PROVIDER_SOURCE_TIMEOUT_MS": 25000,

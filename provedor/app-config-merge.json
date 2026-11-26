@@ -1,0 +1,6 @@
+{
+  "LOCAL_FALLBACKS_ENABLED": true,
+  "EMBEDTV_API_BASE": "https://embedtv.my",
+  "EMBEDTV_FALLBACK_BASE": "https://embedtv.my",
+  "EMBEDTV_SOURCE_REFERER": "https://embedtv.my/"
+}
