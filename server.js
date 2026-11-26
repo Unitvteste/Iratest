@@ -718,7 +718,12 @@ function embedTvFallbackFor(item, playerUrl = '') {
 function embedTvLocalDirectUrlFor(item) {
   return EMBEDTV_LOCAL_CHANNEL_URLS.get(String(item?.id || '').trim()) || null;
 }
-function embedTvLocalFileStream(id, item, url, reason) {
+async function embedTvLocalFileStream(id, item, url, reason) {
+  const media = await validateEmbedTvJsonFallbackMedia(url, EMBEDTV_SOURCE_REFERER, 2500);
+  if (!media) {
+    sourceLog('embedtv-json-fallback-rejected', { id, channelId: item.id, reason: 'json-url-is-not-direct-media' });
+    return { streams: [] };
+  }
   const referer = EMBEDTV_SOURCE_REFERER;
   const request = {
     'User-Agent': DEFAULT_UA,
@@ -731,8 +736,8 @@ function embedTvLocalFileStream(id, item, url, reason) {
   return { streams: [{
     name: '📡 EmbedTV • Link direto do JSON',
     title: ['IracemaTV', `Canal • ${item.name || item.title || 'Canal'}`, 'Provedor • EmbedTV', 'Ao Vivo'].join('\n'),
-    url,
-    type: 'hls',
+    url: media.url,
+    type: media.type,
     behaviorHints: { notWebReady: true, proxyHeaders: { request } }
   }] };
 }
@@ -780,6 +785,53 @@ async function validateEmbedTvDirectPlaybackUrl(value, referer = EMBEDTV_SOURCE_
           ? /video\/(?:mp4|x-m4v)/.test(contentType) || firstChunk.toString('latin1', 4, 8) === 'ftyp'
           : /video\/(?:mp2t|mpg|mpeg)/.test(contentType) || (firstChunk.length >= 189 && firstChunk[0] === 0x47 && firstChunk[188] === 0x47);
     return valid ? (response.url || value) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function validateEmbedTvJsonFallbackMedia(value, referer = EMBEDTV_SOURCE_REFERER, timeoutMs = 2500) {
+  const safeUrl = await withTimeout(
+    safePageUrl(value), Math.max(1, Math.min(1000, Number(timeoutMs) || 2500)), null
+  );
+  if (!safeUrl) return null;
+  const url = safeUrl.href;
+  if (isDirectPlaybackUrl(url)) {
+    const validated = await validateEmbedTvDirectPlaybackUrl(url, referer, timeoutMs);
+    if (!validated) return null;
+    const pathname = new URL(url).pathname.toLowerCase();
+    const type = pathname.endsWith('.mpd') ? 'dash' : /\.(?:mp4|m4v)(?:$|[?#])/.test(pathname) ? 'mp4' : 'hls';
+    return { url: value, type };
+  }
+  try {
+    const response = await fetch(url, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(Math.max(1, Math.min(2500, Number(timeoutMs) || 2500))),
+      headers: {
+        'User-Agent': DEFAULT_UA,
+        Accept: 'application/vnd.apple.mpegurl, application/dash+xml, video/*, application/octet-stream, */*',
+        Referer: referer,
+        Origin: originOf(referer),
+        Range: 'bytes=0-1023'
+      }
+    });
+    if (!response.ok && response.status !== 206) return null;
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+    const reader = response.body?.getReader();
+    let firstChunk = Buffer.alloc(0);
+    if (reader) {
+      try {
+        const result = await reader.read();
+        if (result.value) firstChunk = Buffer.from(result.value);
+      } finally {
+        await reader.cancel().catch(() => {});
+      }
+    }
+    const text = firstChunk.toString('utf8');
+    if (/mpegurl|x-mpegurl/.test(contentType) || /^\uFEFF?\s*#EXTM3U/i.test(text)) return { url: value, type: 'hls' };
+    if (/dash\+xml/.test(contentType) || /<MPD(?:\s|>)/i.test(text)) return { url: value, type: 'dash' };
+    if (/video\/(?:mp4|x-m4v)/.test(contentType) || firstChunk.toString('latin1', 4, 8) === 'ftyp') return { url: value, type: 'mp4' };
+    return null;
   } catch {
     return null;
   }
