@@ -65,8 +65,8 @@
   "M3U_SOURCE_TIMEOUT_MS": 25000,
   "M3U_TIMEOUT_MS": 25000,
   "EMBEDTV_API_BASE": "https://apitvaddon-production.up.railway.app/api/v1",
-  "EMBEDTV_FALLBACK_BASE": "https://embedtv.cc",
-  "EMBEDTV_SOURCE_REFERER": "https://embedtv.cc/",
+  "EMBEDTV_FALLBACK_BASE": "https://embedtv.my",
+  "EMBEDTV_SOURCE_REFERER": "https://embedtv.my/",
   "EMBEDTV_FALLBACK_FILE": "./embedTV.json",
   "M3U_SOURCES": [
     {
