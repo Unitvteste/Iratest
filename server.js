@@ -650,6 +650,8 @@ function extractEmbedTvErrorSources(html) {
 async function chooseEmbedTvErrorSource(sources, pageUrl, timeoutMs = 4000) {
   const candidates = [...new Set((Array.isArray(sources) ? sources : []).filter(isEmbedTvHlsSourceUrl))].slice(0, 8);
   if (!candidates.length) return null;
+  const capturedLocalSource = candidates.find((source) => EMBEDTV_TRUSTED_JSON_SOURCES.has(source));
+  if (capturedLocalSource) return capturedLocalSource;
   const referer = pageUrl || EMBEDTV_SOURCE_REFERER;
   const checks = await Promise.all(candidates.map(async (source) => {
     try {
@@ -689,6 +691,7 @@ const EMBEDTV_FALLBACK_FILE = path.isAbsolute(String(EMBEDTV_FALLBACK_CONFIG)) ?
 const EMBEDTV_ERROR_FALLBACKS = new Map();
 const EMBEDTV_LOCAL_CHANNEL_URLS = new Map();
 const EMBEDTV_VALIDATED_SOURCES = new Set();
+const EMBEDTV_TRUSTED_JSON_SOURCES = new Set();
 try {
   const fallbackPayload = JSON.parse(fs.readFileSync(EMBEDTV_FALLBACK_FILE, 'utf8'));
   const fallbackItems = Array.isArray(fallbackPayload) ? fallbackPayload : (fallbackPayload.channels || fallbackPayload.items || fallbackPayload.data);
@@ -696,10 +699,11 @@ try {
     const id = String(item?.id || '').trim();
     const localUrl = String(item?.url || item?.sourceUrl || item?.source_url || item?.href || '').trim();
     const errorTxt = String(item?.errorTxt || '').trim();
+    const captureStatus = String(item?.captureStatus || '').trim().toLowerCase();
     if (id && /^https?:\/\//i.test(localUrl)) EMBEDTV_LOCAL_CHANNEL_URLS.set(id, localUrl);
     if (id && isEmbedTvHlsSourceUrl(errorTxt)) {
       EMBEDTV_ERROR_FALLBACKS.set(id, errorTxt);
-      EMBEDTV_VALIDATED_SOURCES.add(errorTxt);
+      if (captureStatus === 'captured') EMBEDTV_TRUSTED_JSON_SOURCES.add(errorTxt);
     }
   }
 } catch (error) {
@@ -743,6 +747,25 @@ async function embedTvLocalFileStream(id, item, url, reason) {
 }
 function embedTvMainCatalogJsonFallback(id, item) {
   if (!String(id).startsWith(CHANNEL_PREFIX)) return null;
+  const capturedSource = EMBEDTV_ERROR_FALLBACKS.get(String(item?.id || '').trim());
+  if (capturedSource && EMBEDTV_TRUSTED_JSON_SOURCES.has(capturedSource)) {
+    const referer = EMBEDTV_SOURCE_REFERER;
+    const request = {
+      'User-Agent': DEFAULT_UA,
+      Accept: 'application/vnd.apple.mpegurl, application/x-mpegURL, */*',
+      Referer: referer
+    };
+    const origin = originOf(referer);
+    if (origin) request.Origin = origin;
+    sourceLog('embedtv-json-captured-direct-fallback', { id, channelId: item.id, reason: 'main-catalog-no-direct-media' });
+    return { streams: [{
+      name: '📡 EmbedTV • HLS do JSON',
+      title: ['IracemaTV', `Canal • ${item.name || item.title || 'Canal'}`, 'Provedor • EmbedTV', 'Ao Vivo'].join('\n'),
+      url: capturedSource,
+      type: 'hls',
+      behaviorHints: { notWebReady: true, proxyHeaders: { request } }
+    }] };
+  }
   const url = embedTvLocalDirectUrlFor(item);
   return url ? embedTvLocalFileStream(id, item, url, 'main-catalog-no-direct-media') : null;
 }
