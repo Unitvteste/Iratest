@@ -13,6 +13,7 @@ const { spawn } = require('node:child_process');
 const { app: CONFIG, XTREAM_SOURCES: CONFIGURED_XTREAM_SOURCES, EPG_SOURCES: CONFIGURED_EPG_SOURCES } = require('./provedor');
 const readline = require('readline');
 const { Readable } = require('stream');
+const LOCAL_FALLBACKS_ENABLED = CONFIG.LOCAL_FALLBACKS_ENABLED !== false;
 const { addonBuilder } = require('stremio-addon-sdk');
 const express = require('express');
 const getRouter = require('stremio-addon-sdk/src/getRouter');
@@ -551,9 +552,9 @@ const CHANNEL_CATALOG_ID = 'iracematv';
 const LIVE_EVENTS_CATALOG_ID = 'iracematv_events';
 const UPCOMING_EVENTS_CATALOG_ID = 'iracematv_upcoming';
 const ALL_EVENTS_CATALOG_ID = 'iracematv_all_events';
-const EMBEDTV_API_BASE = (CONFIG.TV_API_BASE || CONFIG.EMBEDTV_API_BASE || 'https://embedtv.cc').replace(/\/$/, '');
+const EMBEDTV_API_BASE = (CONFIG.TV_API_BASE || CONFIG.EMBEDTV_API_BASE || 'https://embedtv.my').replace(/\/$/, '');
 const EMBEDTV_FALLBACK_BASE = String(CONFIG.EMBEDTV_FALLBACK_BASE || '').replace(/\/$/, '');
-const EMBEDTV_SOURCE_REFERER = CONFIG.EMBEDTV_SOURCE_REFERER || 'https://embedtv.cc/';
+const EMBEDTV_SOURCE_REFERER = CONFIG.EMBEDTV_SOURCE_REFERER || 'https://embedtv.my/';
 const EMBEDTV_CHANNEL_CATALOG_ID = 'iracematv_embedtv';
 const EMBEDTV_EVENTS_CATALOG_ID = 'iracematv_agenda';
 const EMBEDTV_CHANNEL_PREFIX = 'iracematv_embedtv_channel_';
@@ -3640,6 +3641,7 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
   let hostedFallbackReason = '';
   let hostedRemoteStreams = [];
   let localProviderTasks = null;
+  const allowLocalFallbacks = testOptions.localFallbacksEnabled ?? LOCAL_FALLBACKS_ENABLED;
   if (testOptions.useHostedApi === true) {
     const hostedSearch = testOptions.hostedProviderSearch || searchHostedProviders;
     const priority = isAnimeMetadata(tmdbResult)
@@ -3718,25 +3720,35 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
       : failedBatches.length || failedSources.length || failedSourceDetails.length || hostedResult?.partial
         ? 'priority-search-no-streams-with-errors'
         : 'priority-search-empty';
-    const candidateProviderTasks = Array.isArray(testOptions.sourceTasks)
-      ? testOptions.sourceTasks
-      : buildProviderSourceTasks({ type, imdbId, tmdbResult, idMatch });
-    localProviderTasks = selectPriorityProviderTasks(candidateProviderTasks);
-    sourceLog('local-provider-fallback-start', {
-      id: imdb || tmdbId,
-      type,
-      reason: hostedFallbackReason,
-      error: hostedFailure || undefined,
-      failedBatches: failedBatches.length,
-      failedProviders: [...new Set([
-        ...failedBatches.flatMap((failure) => failure.providers || []),
-        ...failedSources.map((source) => String(typeof source === 'string' ? source : source?.id || source?.sourceId || 'unknown'))
-      ])],
-      failedSourceDetails,
-      priorityProviderIds: priority,
-      localSourcesAvailable: localProviderTasks.length,
-      localSourceIds: localProviderTasks.map((source) => String(source.id || source.sourceName || source.providerId || 'unknown'))
-    });
+    if (!allowLocalFallbacks) {
+      localProviderTasks = [];
+      sourceLog('local-provider-fallback-skipped', {
+        id: imdb || tmdbId,
+        type,
+        reason: 'disabled-by-config',
+        hostedFallbackReason
+      });
+    } else {
+      const candidateProviderTasks = Array.isArray(testOptions.sourceTasks)
+        ? testOptions.sourceTasks
+        : buildProviderSourceTasks({ type, imdbId, tmdbResult, idMatch });
+      localProviderTasks = selectPriorityProviderTasks(candidateProviderTasks);
+      sourceLog('local-provider-fallback-start', {
+        id: imdb || tmdbId,
+        type,
+        reason: hostedFallbackReason,
+        error: hostedFailure || undefined,
+        failedBatches: failedBatches.length,
+        failedProviders: [...new Set([
+          ...failedBatches.flatMap((failure) => failure.providers || []),
+          ...failedSources.map((source) => String(typeof source === 'string' ? source : source?.id || source?.sourceId || 'unknown'))
+        ])],
+        failedSourceDetails,
+        priorityProviderIds: priority,
+        localSourcesAvailable: localProviderTasks.length,
+        localSourceIds: localProviderTasks.map((source) => String(source.id || source.sourceName || source.providerId || 'unknown'))
+      });
+    }
   }
 
   const tasks = localProviderTasks || (Array.isArray(testOptions.sourceTasks)
@@ -5338,6 +5350,7 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
   if (!result || !['movie', 'series'].includes(type)) return [];
   let hostedFallbackReason = '';
   let hostedRemoteStreams = [];
+  const allowLocalFallbacks = testOptions.localFallbacksEnabled ?? LOCAL_FALLBACKS_ENABLED;
   if (testOptions.useHostedApi === true) {
     const apiStartedAt = Date.now();
     const hostedSearch = testOptions.hostedXtreamSearch || searchHostedXtream;
@@ -5401,29 +5414,37 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
       });
       return testOptions.returnOutcome ? { streams: remote, outcomes: [], elapsedMs: Number(hostedResult?.elapsedMs) || Date.now() - apiStartedAt } : remote;
     }
-    const sourcesForFallback = selectPriorityXtreamSources(testOptions.sources || XTREAM_SOURCES);
     hostedFallbackReason = hostedFailure
       ? 'api-request-failed'
       : failedSources.length || failedSourceDetails.length || hostedResult?.partial
         ? 'priority-search-no-streams-with-errors'
         : 'priority-search-empty';
-    sourceLog('local-xtream-fallback-start', {
-      id: String(id),
-      type,
-      reason: hostedFallbackReason,
-      error: hostedFailure || undefined,
-      failedSources: hostedFailure?.failedSources?.length ? hostedFailure.failedSources : failedSources,
-      failedSourceDetails: hostedFailure?.failedSourceDetails?.length ? hostedFailure.failedSourceDetails : failedSourceDetails,
-      searchedSourceIds: Array.isArray(hostedResult?.searchedSourceIds) ? hostedResult.searchedSourceIds : [],
-      unattemptedSources: Array.isArray(hostedResult?.unattemptedSources) ? hostedResult.unattemptedSources : [],
-      prioritySourceIds: XTREAM_SEARCH_PRIORITY_IDS,
-      localSourcesAvailable: sourcesForFallback.length,
-      localSourceIds: sourcesForFallback.map((source) => String(source.id || source.sourceName || 'unknown'))
-    });
+    if (!allowLocalFallbacks) {
+      sourceLog('local-xtream-fallback-skipped', {
+        id: String(id), type,
+        reason: 'disabled-by-config',
+        hostedFallbackReason
+      });
+    } else {
+      const sourcesForFallback = selectPriorityXtreamSources(testOptions.sources || XTREAM_SOURCES);
+      sourceLog('local-xtream-fallback-start', {
+        id: String(id),
+        type,
+        reason: hostedFallbackReason,
+        error: hostedFailure || undefined,
+        failedSources: hostedFailure?.failedSources?.length ? hostedFailure.failedSources : failedSources,
+        failedSourceDetails: hostedFailure?.failedSourceDetails?.length ? hostedFailure.failedSourceDetails : failedSourceDetails,
+        searchedSourceIds: Array.isArray(hostedResult?.searchedSourceIds) ? hostedResult.searchedSourceIds : [],
+        unattemptedSources: Array.isArray(hostedResult?.unattemptedSources) ? hostedResult.unattemptedSources : [],
+        prioritySourceIds: XTREAM_SEARCH_PRIORITY_IDS,
+        localSourcesAvailable: sourcesForFallback.length,
+        localSourceIds: sourcesForFallback.map((source) => String(source.id || source.sourceName || 'unknown'))
+      });
+    }
   }
   const candidateXtreamSources = testOptions.sources || XTREAM_SOURCES;
   const sourcesToSearch = testOptions.useHostedApi === true
-    ? selectPriorityXtreamSources(candidateXtreamSources)
+    ? (allowLocalFallbacks ? selectPriorityXtreamSources(candidateXtreamSources) : [])
     : xtreamSearchOrder(candidateXtreamSources);
   const requestSource = testOptions.requestSource || xtreamSourceRequest;
   const idMatch = String(id).match(/^tt\d+(?::(\d+):(\d+))?$/i);
@@ -5441,9 +5462,11 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
     return candidateNames.some((name) => aliases.includes(name));
   };
   const totalBudgetMs = Math.min(IMDB_STREAM_TIMEOUT_MS, Math.max(1, Number(budgetMs) || IMDB_STREAM_TIMEOUT_MS));
-  const alternativeNamesPromise = Array.isArray(testOptions.alternativeTitleVariants)
-    ? Promise.resolve(testOptions.alternativeTitleVariants)
-    : withTimeout(tmdbAlternativeTitleVariants(type, result), Math.min(2000, totalBudgetMs), []);
+  const alternativeNamesPromise = !sourcesToSearch.length
+    ? Promise.resolve([])
+    : Array.isArray(testOptions.alternativeTitleVariants)
+      ? Promise.resolve(testOptions.alternativeTitleVariants)
+      : withTimeout(tmdbAlternativeTitleVariants(type, result), Math.min(2000, totalBudgetMs), []);
 
   const queueRunner = testOptions.parallel ? runSourceQueueParallel : runSourceQueueSerial;
   const search = await queueRunner(
@@ -5554,7 +5577,7 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
     sources: allOutcomes
   };
   if (!testOptions.suppressSummary) sourceLog('xtream-search-complete', summary);
-  if (hostedFallbackReason) sourceLog('local-xtream-fallback-complete', {
+  if (hostedFallbackReason && allowLocalFallbacks) sourceLog('local-xtream-fallback-complete', {
     id: String(id),
     type,
     reason: hostedFallbackReason,
@@ -8063,7 +8086,7 @@ builder.defineStreamHandler(
         }
 
         const directStreamsFound = providerApiStreams.length + xtreamEntries.length > 0;
-        const m3uBudgetMs = shouldUseImdbM3uFallback([...providerApiStreams, ...streamsForEntries(xtreamEntries)])
+        const m3uBudgetMs = LOCAL_FALLBACKS_ENABLED && shouldUseImdbM3uFallback([...providerApiStreams, ...streamsForEntries(xtreamEntries)])
           ? Math.min(IMDB_M3U_TIMEOUT_MS, providerBudgetRemainingMs())
           : 0;
         const m3uResult = result && m3uBudgetMs > 0
