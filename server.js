@@ -1933,7 +1933,7 @@ async function streamsInternal(type, id, refreshedEmbedTv = false, requestDeadli
     if (errorTxtUrl) {
       sourceLog('embedtv-error-txt-direct-selected', { id, channelId: item.id, mode: 'apitv-error-txt' });
       return { streams: [{
-        name: '📡 EmbedTV • error.txt direto',
+        name: '📡 EmbedTV • ao vivo',
         title: ['IracemaTV', `Canal • ${item.name || item.title || 'Canal'}`, 'Provedor • EmbedTV', 'Ao Vivo'].join('\n'),
         url: errorTxtUrl,
         type: 'hls',
