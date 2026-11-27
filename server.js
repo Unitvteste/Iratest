@@ -3151,10 +3151,10 @@ function selectPriorityXtreamSources(sources = XTREAM_SOURCES) {
 }
 
 const ANIME_PROVIDER_SEARCH_PRIORITY_IDS = Object.freeze([
-  'animefire', 'animeq', 'animescloud', 'animesdigital', 'animesdrive',
-  'animesfhd', 'animeshd', 'animesonlineblue', 'animesonlinecloud',
-  'animezey', 'otakulogia', 'oxeanimes', 'superanimes', 'topanimes',
-  'anibunker', 'anizone', 'anizero', 'animy', 'anitube', 'uniquestream'
+  'animy', 'animesfhd', 'animeshd', 'otakulogia', 'animescloud', 'animesdrive',
+  'animezey', 'animefire', 'animeq', 'animesdigital', 'animesonlineblue',
+  'animesonlinecloud', 'oxeanimes', 'superanimes', 'topanimes', 'anibunker',
+  'anizone', 'anizero', 'anitube', 'uniquestream'
 ]);
 
 function isAnimeMetadata(result = {}) {
