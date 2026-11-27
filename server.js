@@ -551,9 +551,10 @@ const CHANNEL_CATALOG_ID = 'iracematv';
 const LIVE_EVENTS_CATALOG_ID = 'iracematv_events';
 const UPCOMING_EVENTS_CATALOG_ID = 'iracematv_upcoming';
 const ALL_EVENTS_CATALOG_ID = 'iracematv_all_events';
-const EMBEDTV_API_BASE = (CONFIG.TV_API_BASE || CONFIG.EMBEDTV_API_BASE || 'https://embedtv.cc').replace(/\/$/, '');
+const EMBEDTV_API_BASE = (CONFIG.EMBEDTV_API_BASE || 'https://embedtv.my').replace(/\/$/, '');
 const EMBEDTV_FALLBACK_BASE = String(CONFIG.EMBEDTV_FALLBACK_BASE || '').replace(/\/$/, '');
-const EMBEDTV_SOURCE_REFERER = CONFIG.EMBEDTV_SOURCE_REFERER || 'https://embedtv.cc/';
+const EMBEDTV_SOURCE_REFERER = CONFIG.EMBEDTV_SOURCE_REFERER || 'https://embedtv.my/';
+const EMBEDTV_API_TIMEOUT_MS = boundedInt(CONFIG.EMBEDTV_API_TIMEOUT_MS, 7000, 1000, 7000);
 const EMBEDTV_CHANNEL_CATALOG_ID = 'iracematv_embedtv';
 const EMBEDTV_EVENTS_CATALOG_ID = 'iracematv_agenda';
 const EMBEDTV_CHANNEL_PREFIX = 'iracematv_embedtv_channel_';
@@ -646,15 +647,17 @@ function extractEmbedTvErrorSources(html) {
     .map((match) => match[1])
     .filter((value) => isEmbedTvHlsSourceUrl(value)))];
 }
-async function chooseEmbedTvErrorSource(sources, pageUrl) {
+async function chooseEmbedTvErrorSource(sources, pageUrl, timeoutMs = 4000) {
   const candidates = [...new Set((Array.isArray(sources) ? sources : []).filter(isEmbedTvHlsSourceUrl))].slice(0, 8);
   if (!candidates.length) return null;
+  const capturedLocalSource = candidates.find((source) => EMBEDTV_TRUSTED_JSON_SOURCES.has(source));
+  if (capturedLocalSource) return capturedLocalSource;
   const referer = pageUrl || EMBEDTV_SOURCE_REFERER;
   const checks = await Promise.all(candidates.map(async (source) => {
     try {
       const response = await fetch(source, {
         redirect: 'follow',
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(Math.max(1, Math.min(4000, Number(timeoutMs) || 4000))),
         headers: {
           'User-Agent': DEFAULT_UA,
           Accept: 'application/vnd.apple.mpegurl, application/x-mpegURL, */*',
@@ -683,19 +686,24 @@ async function chooseEmbedTvErrorSource(sources, pageUrl) {
   }));
   return checks.find(Boolean) || null;
 }
-const EMBEDTV_FALLBACK_CONFIG = CONFIG.EMBEDTV_FALLBACK_FILE || 'embedTV.json';
+const EMBEDTV_FALLBACK_CONFIG = CONFIG.EMBEDTV_FALLBACK_FILE || 'Embedtv.json';
 const EMBEDTV_FALLBACK_FILE = path.isAbsolute(String(EMBEDTV_FALLBACK_CONFIG)) ? String(EMBEDTV_FALLBACK_CONFIG) : path.resolve(__dirname, String(EMBEDTV_FALLBACK_CONFIG));
 const EMBEDTV_ERROR_FALLBACKS = new Map();
+const EMBEDTV_LOCAL_CHANNEL_URLS = new Map();
 const EMBEDTV_VALIDATED_SOURCES = new Set();
+const EMBEDTV_TRUSTED_JSON_SOURCES = new Set();
 try {
   const fallbackPayload = JSON.parse(fs.readFileSync(EMBEDTV_FALLBACK_FILE, 'utf8'));
-  const fallbackItems = Array.isArray(fallbackPayload) ? fallbackPayload : fallbackPayload.channels;
+  const fallbackItems = Array.isArray(fallbackPayload) ? fallbackPayload : (fallbackPayload.channels || fallbackPayload.items || fallbackPayload.data);
   for (const item of Array.isArray(fallbackItems) ? fallbackItems : []) {
     const id = String(item?.id || '').trim();
+    const localUrl = String(item?.url || item?.sourceUrl || item?.source_url || item?.href || '').trim();
     const errorTxt = String(item?.errorTxt || '').trim();
+    const captureStatus = String(item?.captureStatus || '').trim().toLowerCase();
+    if (id && /^https?:\/\//i.test(localUrl)) EMBEDTV_LOCAL_CHANNEL_URLS.set(id, localUrl);
     if (id && isEmbedTvHlsSourceUrl(errorTxt)) {
       EMBEDTV_ERROR_FALLBACKS.set(id, errorTxt);
-      EMBEDTV_VALIDATED_SOURCES.add(errorTxt);
+      if (captureStatus === 'captured') EMBEDTV_TRUSTED_JSON_SOURCES.add(errorTxt);
     }
   }
 } catch (error) {
@@ -711,8 +719,145 @@ function embedTvFallbackFor(item, playerUrl = '') {
     return EMBEDTV_ERROR_FALLBACKS.get(slugValue) || null;
   } catch { return null; }
 }
+function embedTvLocalDirectUrlFor(item) {
+  return EMBEDTV_LOCAL_CHANNEL_URLS.get(String(item?.id || '').trim()) || null;
+}
+async function embedTvLocalFileStream(id, item, url, reason) {
+  const media = await validateEmbedTvJsonFallbackMedia(url, EMBEDTV_SOURCE_REFERER, 2500);
+  if (!media) {
+    sourceLog('embedtv-json-fallback-rejected', { id, channelId: item.id, reason: 'json-url-is-not-direct-media' });
+    return { streams: [] };
+  }
+  const referer = EMBEDTV_SOURCE_REFERER;
+  const request = {
+    'User-Agent': DEFAULT_UA,
+    Accept: 'application/vnd.apple.mpegurl, application/x-mpegURL, */*',
+    Referer: referer
+  };
+  const origin = originOf(referer);
+  if (origin) request.Origin = origin;
+  sourceLog('embedtv-json-direct-fallback', { id, channelId: item.id, reason });
+  return { streams: [{
+    name: '📡 EmbedTV • Link direto do JSON',
+    title: ['IracemaTV', `Canal • ${item.name || item.title || 'Canal'}`, 'Provedor • EmbedTV', 'Ao Vivo'].join('\n'),
+    url: media.url,
+    type: media.type,
+    behaviorHints: { notWebReady: true, proxyHeaders: { request } }
+  }] };
+}
+function embedTvMainCatalogJsonFallback(id, item) {
+  if (!String(id).startsWith(CHANNEL_PREFIX)) return null;
+  const capturedSource = EMBEDTV_ERROR_FALLBACKS.get(String(item?.id || '').trim());
+  if (capturedSource && EMBEDTV_TRUSTED_JSON_SOURCES.has(capturedSource)) {
+    const referer = EMBEDTV_SOURCE_REFERER;
+    const request = {
+      'User-Agent': DEFAULT_UA,
+      Accept: 'application/vnd.apple.mpegurl, application/x-mpegURL, */*',
+      Referer: referer
+    };
+    const origin = originOf(referer);
+    if (origin) request.Origin = origin;
+    sourceLog('embedtv-json-captured-direct-fallback', { id, channelId: item.id, reason: 'main-catalog-no-direct-media' });
+    return { streams: [{
+      name: '📡 EmbedTV • HLS do JSON',
+      title: ['IracemaTV', `Canal • ${item.name || item.title || 'Canal'}`, 'Provedor • EmbedTV', 'Ao Vivo'].join('\n'),
+      url: capturedSource,
+      type: 'hls',
+      behaviorHints: { notWebReady: true, proxyHeaders: { request } }
+    }] };
+  }
+  const url = embedTvLocalDirectUrlFor(item);
+  return url ? embedTvLocalFileStream(id, item, url, 'main-catalog-no-direct-media') : null;
+}
 function isDirectPlaybackUrl(value) {
   return typeof value === 'string' && /^https?:\/\//i.test(value) && !isLikelyInvalidPlaybackUrl(value) && !/[\s<>"']/u.test(value) && /\.(?:m3u8|mpd|mp4|m4v|ts)(?:$|[?#])/i.test(value);
+}
+async function validateEmbedTvDirectPlaybackUrl(value, referer = EMBEDTV_SOURCE_REFERER, timeoutMs = 1800) {
+  if (!isDirectPlaybackUrl(value)) return null;
+  try {
+    const response = await fetch(value, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(Math.max(1, Math.min(2500, Number(timeoutMs) || 1800))),
+      headers: {
+        'User-Agent': DEFAULT_UA,
+        Accept: 'application/vnd.apple.mpegurl, application/dash+xml, video/*, application/octet-stream, */*',
+        Referer: referer,
+        Origin: originOf(referer),
+        Range: 'bytes=0-1023'
+      }
+    });
+    if (!response.ok && response.status !== 206) return null;
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+    const reader = response.body?.getReader();
+    let firstChunk = Buffer.alloc(0);
+    if (reader) {
+      try {
+        const result = await reader.read();
+        if (result.value) firstChunk = Buffer.from(result.value);
+      } finally {
+        await reader.cancel().catch(() => {});
+      }
+    }
+    const text = firstChunk.toString('utf8');
+    const path = (() => { try { return new URL(value).pathname.toLowerCase(); } catch { return ''; } })();
+    const valid = path.endsWith('.m3u8')
+      ? /mpegurl|x-mpegurl/.test(contentType) || /^\uFEFF?\s*#EXTM3U/i.test(text)
+      : path.endsWith('.mpd')
+        ? /dash\+xml/.test(contentType) || /<MPD(?:\s|>)/i.test(text)
+        : /\.(?:mp4|m4v)(?:$|[?#])/.test(path)
+          ? /video\/(?:mp4|x-m4v)/.test(contentType) || firstChunk.toString('latin1', 4, 8) === 'ftyp'
+          : /video\/(?:mp2t|mpg|mpeg)/.test(contentType) || (firstChunk.length >= 189 && firstChunk[0] === 0x47 && firstChunk[188] === 0x47);
+    return valid ? (response.url || value) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function validateEmbedTvJsonFallbackMedia(value, referer = EMBEDTV_SOURCE_REFERER, timeoutMs = 2500) {
+  const safeUrl = await withTimeout(
+    safePageUrl(value), Math.max(1, Math.min(1000, Number(timeoutMs) || 2500)), null
+  );
+  if (!safeUrl) return null;
+  const url = safeUrl.href;
+  if (isDirectPlaybackUrl(url)) {
+    const validated = await validateEmbedTvDirectPlaybackUrl(url, referer, timeoutMs);
+    if (!validated) return null;
+    const pathname = new URL(url).pathname.toLowerCase();
+    const type = pathname.endsWith('.mpd') ? 'dash' : /\.(?:mp4|m4v)(?:$|[?#])/.test(pathname) ? 'mp4' : 'hls';
+    return { url: value, type };
+  }
+  try {
+    const response = await fetch(url, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(Math.max(1, Math.min(2500, Number(timeoutMs) || 2500))),
+      headers: {
+        'User-Agent': DEFAULT_UA,
+        Accept: 'application/vnd.apple.mpegurl, application/dash+xml, video/*, application/octet-stream, */*',
+        Referer: referer,
+        Origin: originOf(referer),
+        Range: 'bytes=0-1023'
+      }
+    });
+    if (!response.ok && response.status !== 206) return null;
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+    const reader = response.body?.getReader();
+    let firstChunk = Buffer.alloc(0);
+    if (reader) {
+      try {
+        const result = await reader.read();
+        if (result.value) firstChunk = Buffer.from(result.value);
+      } finally {
+        await reader.cancel().catch(() => {});
+      }
+    }
+    const text = firstChunk.toString('utf8');
+    if (/mpegurl|x-mpegurl/.test(contentType) || /^\uFEFF?\s*#EXTM3U/i.test(text)) return { url: value, type: 'hls' };
+    if (/dash\+xml/.test(contentType) || /<MPD(?:\s|>)/i.test(text)) return { url: value, type: 'dash' };
+    if (/video\/(?:mp4|x-m4v)/.test(contentType) || firstChunk.toString('latin1', 4, 8) === 'ftyp') return { url: value, type: 'mp4' };
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 function originOf(value) {
@@ -835,24 +980,36 @@ async function fetchLiveItemsPrimaryThenLocal(renderEndpoint, localEndpoint, lab
 }
 
 async function fetchEmbedTvJson(pathname) {
-  const isHostedTvApi = /\/api\/v1\/?$/i.test(EMBEDTV_API_BASE);
-  const hostedPath = isHostedTvApi
-    ? ({ '/api/channels': 'channels?source=embedtv&limit=500', '/api/events': 'embedtv/events', '/api/epg_all': 'embedtv/epg' }[pathname] || pathname.replace(/^\//, ''))
-    : pathname;
   const remoteBase = EMBEDTV_API_BASE;
   const localBase = EMBEDTV_FALLBACK_BASE;
-  const attempts = [{ name: 'primary', base: remoteBase, pathname: hostedPath }];
+  const hostedPathFor = (base, pathValue) => /\/api\/v1\/?$/i.test(new URL(base).pathname)
+    ? ({ '/api/channels': 'channels?source=embedtv&limit=500', '/api/events': 'embedtv/events', '/api/epg_all': 'embedtv/epg' }[pathValue] || pathValue.replace(/^\//, ''))
+    : pathValue;
+  // A API APITV corrigida é a fonte primária; embedtv.my permanece como failover.
+  const attempts = [];
   if (localBase && new URL(localBase).origin !== new URL(remoteBase).origin) {
-    attempts.push({ name: 'local', base: localBase, pathname });
+    attempts.push({ name: 'tv-api', base: localBase, pathname: hostedPathFor(localBase, pathname) });
   }
+  attempts.push({ name: 'embedtv', base: remoteBase, pathname: hostedPathFor(remoteBase, pathname) });
   let lastEmptyPayload = null;
   let lastError = null;
-  for (const attempt of attempts) {
+  const deadlineAt = Date.now() + EMBEDTV_API_TIMEOUT_MS;
+  const localFallbackReserveMs = pathname === '/api/channels' && fs.existsSync(EMBEDTV_FALLBACK_FILE)
+    ? Math.min(500, Math.floor(EMBEDTV_API_TIMEOUT_MS * 0.1))
+    : 0;
+  for (let attemptIndex = 0; attemptIndex < attempts.length; attemptIndex += 1) {
+    const attempt = attempts[attemptIndex];
+    const remainingMs = deadlineAt - Date.now();
+    const usableMs = remainingMs - localFallbackReserveMs;
+    if (usableMs <= 0) break;
+    const remainingAttempts = attempts.length - attemptIndex - 1;
+    const attemptBudgetMs = remainingAttempts > 0 ? Math.floor(usableMs / (remainingAttempts + 1)) : usableMs;
+    if (attemptBudgetMs <= 0) break;
     const url = new URL(String(attempt.pathname || '').replace(/^\/+/, ''), `${attempt.base}/`);
     try {
       const response = await fetch(url, {
         headers: { accept: 'application/json, text/plain, */*', 'user-agent': DEFAULT_UA, referer: EMBEDTV_SOURCE_REFERER },
-        signal: AbortSignal.timeout(15000)
+        signal: AbortSignal.timeout(Math.min(EMBEDTV_API_TIMEOUT_MS, attemptBudgetMs))
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const text = await response.text();
@@ -872,8 +1029,9 @@ async function fetchEmbedTvJson(pathname) {
   }
   if (pathname === '/api/channels' && fs.existsSync(EMBEDTV_FALLBACK_FILE)) {
     const payload = JSON.parse(fs.readFileSync(EMBEDTV_FALLBACK_FILE, 'utf8'));
-    sourceLog('embedtv-api-file-fallback', { path: pathname, count: Array.isArray(payload?.channels) ? payload.channels.length : 0 });
-    return Array.isArray(payload) ? payload : { channels: payload.channels || [] };
+    const channels = Array.isArray(payload) ? payload : (payload?.channels || payload?.items || payload?.data || []);
+    sourceLog('embedtv-api-file-fallback', { path: pathname, count: Array.isArray(channels) ? channels.length : 0 });
+    return { ...(Array.isArray(payload) ? {} : payload), channels, __embedTvLocalFallback: true };
   }
   if (lastEmptyPayload) return lastEmptyPayload;
   throw new Error(`EmbedTV ${pathname} indisponível: ${String(lastError?.message || lastError || 'sem resposta').slice(0, 120)}`);
@@ -887,13 +1045,13 @@ async function getEmbedTvChannels(force = false) {
     const baseCategories = (Array.isArray(item.categories) ? item.categories : []).map((id) => categoryNames.get(String(id))).filter((name) => name && name !== 'Todos');
     const channelText = `${item.id || ''} ${item.name || ''}`;
     const categories = /a fazenda/i.test(channelText) ? ['A Fazenda 18'] : /^24h[_ ]/i.test(String(item.id || '')) || /\b24h\b/i.test(String(item.name || '')) ? ['Canais 24h'] : baseCategories;
-    const sourceUrl = item.sourceUrl || item.source_url || item.url || item.href || item.embed_url || '';
-    return { ...item, url: item.url || sourceUrl, source_url: item.source_url || sourceUrl, sourceUrl,
+    const sourceUrl = item.sourceUrl || item.source_url || item.errorTxtUrl || item.error_txt_url || item.errorTxt || item.error_txt || item.url || item.href || item.embed_url || '';
+    return { ...item, __embedTvLocalFallback: payload?.__embedTvLocalFallback === true, url: item.url || sourceUrl, source_url: item.source_url || sourceUrl, sourceUrl,
       source_name: item.source_name || 'EmbedTV', category: categories.join(' • ') || item.category || 'Outros' };
   }).filter((item) => {
     const id = normalizeText(item.id);
     const name = normalizeText(item.name || item.title);
-    return item.id && (item.url || item.sourceUrl || item.source_url) && !/^(playboy|sexyhot)$/.test(id) && !/^(play boy|sexy hot)$/.test(name);
+    return item.id && (item.url || item.sourceUrl || item.source_url || item.errorTxtUrl || item.error_txt_url || item.errorTxt || item.error_txt) && !/^(playboy|sexyhot)$/.test(id) && !/^(play boy|sexy hot)$/.test(name);
   });
   cache.embedTv.channels = { at: Date.now(), data: channels };
   return channels;
@@ -1746,7 +1904,17 @@ function youtubeVideoId(value) {
   } catch { return null; }
 }
 
-async function streams(type, id, refreshedEmbedTv = false) {
+async function streams(type, id, refreshedEmbedTv = false, deadlineAt = null) {
+  const isEmbedTvRequest = String(id).startsWith(EMBEDTV_CHANNEL_PREFIX) || String(id).startsWith(EMBEDTV_EVENT_PREFIX);
+  if (!isEmbedTvRequest) return streamsInternal(type, id, refreshedEmbedTv, null);
+  const requestDeadlineAt = Number(deadlineAt) || Date.now() + EMBEDTV_API_TIMEOUT_MS;
+  return withTimeout(
+    streamsInternal(type, id, refreshedEmbedTv, requestDeadlineAt),
+    Math.max(1, requestDeadlineAt - Date.now()),
+    { streams: [] }
+  );
+}
+async function streamsInternal(type, id, refreshedEmbedTv = false, requestDeadlineAt = null) {
   if (String(id).startsWith(EVENT_PREFIX)) sourceLog('rei-event-stream-request-start', { id, type });
   const item = await getItem(type, id);
   if (!item) {
@@ -1759,6 +1927,48 @@ async function streams(type, id, refreshedEmbedTv = false) {
   const candidates = streamCandidates(item);
   if (String(id).startsWith(EVENT_PREFIX)) sourceLog('rei-event-stream-lookup', { id, candidateCount: candidates.length, labels: candidates.map((candidate) => candidate.label || ''), isReiItem });
   if (String(id).startsWith(EMBEDTV_CHANNEL_PREFIX)) {
+    const localDirectUrl = embedTvLocalDirectUrlFor(item);
+    const errorTxtUrl = [item.errorTxtUrl, item.error_txt_url, item.errorTxt, item.sourceUrl, item.source_url]
+      .find((candidate) => isEmbedTvHlsSourceUrl(candidate));
+    if (errorTxtUrl) {
+      sourceLog('embedtv-error-txt-direct-selected', { id, channelId: item.id, mode: 'apitv-error-txt' });
+      return { streams: [{
+        name: '📡 EmbedTV • error.txt direto',
+        title: ['IracemaTV', `Canal • ${item.name || item.title || 'Canal'}`, 'Provedor • EmbedTV', 'Ao Vivo'].join('\n'),
+        url: errorTxtUrl,
+        type: 'hls',
+        behaviorHints: { notWebReady: true }
+      }] };
+    }
+    if (item.__embedTvLocalFallback && localDirectUrl) {
+      return embedTvLocalFileStream(id, item, localDirectUrl, 'api-unavailable');
+    }
+    const directApiCandidate = candidates.find((candidate) => isDirectPlaybackUrl(candidate.url));
+    if (directApiCandidate) {
+      const referer = directApiCandidate.referer || EMBEDTV_SOURCE_REFERER;
+      const remainingMs = requestDeadlineAt ? Math.max(1, requestDeadlineAt - Date.now()) : 1800;
+      const validatedDirectUrl = await validateEmbedTvDirectPlaybackUrl(
+        directApiCandidate.url, referer, Math.min(1800, remainingMs)
+      );
+      if (validatedDirectUrl) {
+        const request = {
+          'User-Agent': DEFAULT_UA,
+          Accept: 'application/vnd.apple.mpegurl, application/x-mpegURL, */*',
+          Referer: referer
+        };
+        const origin = originOf(referer);
+        if (origin) request.Origin = origin;
+        sourceLog('embedtv-direct-media-selected', { id, channelId: item.id, mode: 'validated-api-direct-media' });
+        return { streams: [{
+          name: '📡 EmbedTV • Stream direto',
+          title: ['IracemaTV', `Canal • ${item.name || item.title || 'Canal'}`, 'Provedor • EmbedTV', 'Ao Vivo'].join('\n'),
+          url: validatedDirectUrl,
+          ...( /\.m3u8(?:$|[?#])/i.test(validatedDirectUrl) ? { type: 'hls' } : {}),
+          behaviorHints: { notWebReady: true, proxyHeaders: { request } }
+        }] };
+      }
+      sourceLog('embedtv-direct-media-rejected', { id, channelId: item.id, reason: 'response-not-valid-media' });
+    }
     sourceLog('embedtv-stream-candidates', {
       id,
       channelId: item.id,
@@ -1771,13 +1981,24 @@ async function streams(type, id, refreshedEmbedTv = false) {
       const uniqueEmbeds = [...new Set(embeds)];
       sourceLog('embedtv-stream-selected', { id, channelId: item.id, embedUrls: uniqueEmbeds, mode: 'resolve-direct-source' });
       try {
-        const page = await withTimeout(fetchPublicText(uniqueEmbeds[0], uniqueEmbeds[0]), PAGE_TIMEOUT_MS, null);
+        const remainingMs = requestDeadlineAt ? Math.max(1, requestDeadlineAt - Date.now()) : EMBEDTV_API_TIMEOUT_MS;
+        const page = await withTimeout(
+          fetchPublicText(uniqueEmbeds[0], uniqueEmbeds[0]),
+          Math.min(PAGE_TIMEOUT_MS, 3000, remainingMs),
+          null
+        );
         let internalSrc = await chooseEmbedTvErrorSource(
           extractEmbedTvErrorSources(page?.text),
-          uniqueEmbeds[0]
+          uniqueEmbeds[0],
+          Math.min(4000, Math.max(1, requestDeadlineAt ? requestDeadlineAt - Date.now() : EMBEDTV_API_TIMEOUT_MS))
         );
         if (!internalSrc) {
-          internalSrc = embedTvFallbackFor(item, uniqueEmbeds[0]);
+          const fallbackCandidate = embedTvFallbackFor(item, uniqueEmbeds[0]);
+          internalSrc = await chooseEmbedTvErrorSource(
+            fallbackCandidate ? [fallbackCandidate] : [],
+            uniqueEmbeds[0],
+            Math.min(4000, Math.max(1, requestDeadlineAt ? requestDeadlineAt - Date.now() : EMBEDTV_API_TIMEOUT_MS))
+          );
           if (internalSrc) sourceLog('embedtv-fallback-source-selected', { id, embedUrl: uniqueEmbeds[0], internalSrc });
         }
         sourceLog('embedtv-page-source', {
@@ -1812,6 +2033,9 @@ async function streams(type, id, refreshedEmbedTv = false) {
       }
       // Páginas de player não são streams reproduzíveis; só fontes diretas são devolvidas.
     }
+    if (localDirectUrl) {
+      return embedTvLocalFileStream(id, item, localDirectUrl, 'api-link-unresolved');
+    }
     // Os subdomínios hash do EmbedTV mudam e os antigos podem responder 404.
     // Em caso de falha ou de página sem /error.txt, invalida o cache e tenta
     // uma vez com o host recém-publicado pela API.
@@ -1820,9 +2044,11 @@ async function streams(type, id, refreshedEmbedTv = false) {
       const refreshedItem = await getItem(type, id).catch(() => null);
       if (refreshedItem?.url && refreshedItem.url !== item.url) {
         sourceLog('embedtv-cache-refreshed', { id, previousUrl: item.url, currentUrl: refreshedItem.url });
-        return streams(type, id, true);
+        return streams(type, id, true, requestDeadlineAt);
       }
     }
+    sourceLog('embedtv-no-external-player-fallback', { id, channelId: item.id, reason: 'no-direct-source-or-json-entry' });
+    return { streams: [] };
   }
   const youtube = isReiItem ? [] : [...new Set(candidates.map((candidate) => youtubeVideoId(candidate.url)).filter(Boolean))];
   if (youtube.length) {
@@ -1841,12 +2067,21 @@ async function streams(type, id, refreshedEmbedTv = false) {
       const directStreams = new Map();
       for (const { url: playerUrl, candidate } of playerPages) {
         try {
-          const page = await withTimeout(fetchPublicText(playerUrl, playerUrl), PAGE_TIMEOUT_MS, null);
+          const remainingMs = requestDeadlineAt ? Math.max(1, requestDeadlineAt - Date.now()) : EMBEDTV_API_TIMEOUT_MS;
+          const page = await withTimeout(fetchPublicText(playerUrl, playerUrl), Math.min(PAGE_TIMEOUT_MS, 3000, remainingMs), null);
           let internalSrc = await chooseEmbedTvErrorSource(
             extractEmbedTvErrorSources(page?.text),
-            playerUrl
+            playerUrl,
+            Math.min(4000, Math.max(1, requestDeadlineAt ? requestDeadlineAt - Date.now() : EMBEDTV_API_TIMEOUT_MS))
           );
-          if (!internalSrc) internalSrc = embedTvFallbackFor(item, playerUrl);
+          if (!internalSrc) {
+            const fallbackCandidate = embedTvFallbackFor(item, playerUrl);
+            internalSrc = await chooseEmbedTvErrorSource(
+              fallbackCandidate ? [fallbackCandidate] : [],
+              playerUrl,
+              Math.min(4000, Math.max(1, requestDeadlineAt ? requestDeadlineAt - Date.now() : EMBEDTV_API_TIMEOUT_MS))
+            );
+          }
           if (!isEmbedTvHlsSourceUrl(internalSrc)) continue;
           const declaredReferer = page?.text?.match(/(?:const|let|var)\s+referer\s*=\s*["']([^"']+)/i)?.[1];
           const sourceReferer = declaredReferer || EMBEDTV_SOURCE_REFERER;
@@ -1906,18 +2141,6 @@ async function streams(type, id, refreshedEmbedTv = false) {
           behaviorHints: { proxyHeaders: { request } }
         };
       }) };
-    }
-    if (String(id).startsWith(EVENT_PREFIX)) {
-      const playerPages = eventPlayerPageStreams(item);
-      if (playerPages.length) {
-        sourceLog('rei-event-player-page-fallback', {
-          id,
-          count: playerPages.length,
-          names: playerPages.map((stream) => stream.name),
-          reason: 'direct-media-not-captured'
-        });
-        return { streams: playerPages };
-      }
     }
   }
   if (normalizeText(item.name || item.title) === 'globo') {
@@ -1996,6 +2219,9 @@ async function streams(type, id, refreshedEmbedTv = false) {
     }] };
   }
 
+  const mainCatalogJsonFallback = embedTvMainCatalogJsonFallback(id, item);
+  if (mainCatalogJsonFallback) return mainCatalogJsonFallback;
+
   if (isReiItem) {
     sourceLog('rei-direct-only-no-playback', {
       id,
@@ -2004,21 +2230,6 @@ async function streams(type, id, refreshedEmbedTv = false) {
       reason: 'nenhuma mídia direta m3u8/mpd/mp4 encontrada; página externa descartada'
     });
     return { streams: [] };
-  }
-
-  // O player hospedado continua sendo uma opção válida quando a playlist HLS
-  // está protegida ou ainda não foi publicada; não descarte o canal/evento.
-  if (candidates.length && (String(id).startsWith(CHANNEL_PREFIX) || String(id).startsWith(EVENT_PREFIX) || String(id).startsWith(EMBEDTV_CHANNEL_PREFIX) || String(id).startsWith(EMBEDTV_EVENT_PREFIX))) {
-    const pages = [...new Map(candidates
-      .map((candidate) => ({ url: candidate.pageUrl || candidate.url, candidate }))
-      .filter(({ url }) => /^https?:\/\//i.test(String(url)))
-      .map((entry) => [entry.url, entry])).values()];
-    if (pages.length) return { streams: pages.slice(0, 8).map(({ url, candidate }) => ({
-      name: `▶️ ${candidate.label || 'EmbedTV'}`,
-      title: `${item.name || item.title || 'Transmissão'} • Player externo`,
-      url,
-      behaviorHints: { notWebReady: true }
-    })) };
   }
 
   return { streams: [] };
@@ -2052,9 +2263,38 @@ async function health() {
   return {
   CHANNEL_CATALOG_ID, LIVE_EVENTS_CATALOG_ID, UPCOMING_EVENTS_CATALOG_ID, ALL_EVENTS_CATALOG_ID, EMBEDTV_CHANNEL_CATALOG_ID, EMBEDTV_EVENTS_CATALOG_ID,
   CHANNEL_PREFIX, EVENT_PREFIX, EMBEDTV_CHANNEL_PREFIX, EMBEDTV_EVENT_PREFIX, handlesCatalog, catalog, meta, streams, health,
-  _test: { embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, eventCaptureTimeoutMs: EVENT_CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, eventPlayerPageStreams, reiProxyUrl, addGloboAlternates, getChannels, getEvents, getEmbedCanaisChannels, getEmbedTvChannels, getEmbedTvEvents, getEmbedTvEpg, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
+  _test: { embedTvApiBase: EMBEDTV_API_BASE, embedTvFallbackBase: EMBEDTV_FALLBACK_BASE, embedTvApiTimeoutMs: EMBEDTV_API_TIMEOUT_MS, embedCanaisTimeoutMs: EMBED_CANAIS_TIMEOUT_MS, pageTimeoutMs: PAGE_TIMEOUT_MS, captureTimeoutMs: CAPTURE_TIMEOUT_MS, eventCaptureTimeoutMs: EVENT_CAPTURE_TIMEOUT_MS, normalizeText, slug, channelId, eventId, eventStatus, isDirectM3u8, isEmbedTvHlsSourceUrl, isDirectPlaybackUrl, embedTvLocalDirectUrlFor, embedTvMainCatalogJsonFallback, youtubeVideoId, safePageUrl, originOf, toArrayPayload, extractM3u8Urls, extractReiM3u8Urls, extractPageLinks, isPublicIp, streamCandidates, captureCandidatePlayback, captureAllPlaybackOptions, eventPlayerPageStreams, reiProxyUrl, addGloboAlternates, getChannels, getEvents, getEmbedCanaisChannels, getEmbedTvChannels, getEmbedTvEvents, getEmbedTvEpg, captureGloboPlaybackOptions, GLOBO_FALLBACK_CHANNELS }
 };
 })();
+
+async function runLocalFallbackWindows({ id, type, remainingBudget, providerSearch, xtreamSearch, providerTasks = 0, xtreamSources = 0 }) {
+  let providerStreams = [];
+  let xtreamStreams = [];
+  let attempts = 0;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    if (providerStreams.length + xtreamStreams.length > 0) break;
+    const budgetMs = Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, Math.max(0, Number(remainingBudget()) || 0));
+    if (budgetMs <= 0) break;
+    attempts = attempt;
+    sourceLog('local-fallback-stage-start', {
+      id, type, attempt, maxAttempts: 2, budgetMs,
+      reason: 'Xtream e provedores hospedados concluíram sem streams', providerTasks, xtreamSources
+    });
+    const [providerResult, xtreamResult] = await Promise.allSettled([
+      typeof providerSearch === 'function' ? providerSearch(budgetMs, attempt) : Promise.resolve([]),
+      typeof xtreamSearch === 'function' ? xtreamSearch(budgetMs, attempt) : Promise.resolve([])
+    ]);
+    providerStreams = providerResult.status === 'fulfilled' && Array.isArray(providerResult.value) ? providerResult.value : [];
+    xtreamStreams = xtreamResult.status === 'fulfilled' && Array.isArray(xtreamResult.value) ? xtreamResult.value : [];
+    if (providerResult.status === 'rejected') sourceLog('provider-fallback-error', { id, attempt, message: providerResult.reason?.message || 'falha no fallback local' });
+    if (xtreamResult.status === 'rejected') sourceLog('xtream-fallback-error', { id, attempt, message: xtreamResult.reason?.message || 'falha no fallback local' });
+    sourceLog('local-fallback-stage-complete', {
+      id, type, attempt, budgetMs, providerStreams: providerStreams.length, xtreamStreams: xtreamStreams.length,
+      retryScheduled: providerStreams.length + xtreamStreams.length === 0 && attempt < 2
+    });
+  }
+  return { providerStreams, xtreamStreams, attempts };
+}
 
 const upstreamAgent = new Agent({
   // Render pode tentar IPv6 antes do IPv4 e deixar o TMDB aguardando até expirar.
@@ -2106,8 +2346,21 @@ const TMDB_API_KEY = CONFIG.TMDB_API_KEY || '';
 const TMDB_LANGUAGE = CONFIG.TMDB_LANGUAGE || 'pt-BR';
 const TMDB_TIMEOUT_MS = Math.min(positiveEnvNumber('TMDB_TIMEOUT_MS', 15000, 15000), 15000);
 const IMDB_METADATA_TIMEOUT_MS = positiveEnvNumber('IMDB_METADATA_TIMEOUT_MS', 4500, 6000);
+function configEnabled(value, fallback = true) {
+  if (value == null) return fallback;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  return !/^(?:false|0|off|no|nao|não)$/i.test(String(value).trim());
+}
+const LOCAL_MEDIA_SEARCH_TIMEOUT_MS = Math.min(
+  positiveEnvNumber('LOCAL_MEDIA_SEARCH_TIMEOUT_MS', Number(CONFIG.LOCAL_MEDIA_SEARCH_TIMEOUT_MS) || 7000, 7000),
+  7000
+);
+const LOCAL_MOVIE_FALLBACK_ENABLED = configEnabled(CONFIG.LOCAL_MOVIE_FALLBACK_ENABLED);
+const LOCAL_SERIES_FALLBACK_ENABLED = configEnabled(CONFIG.LOCAL_SERIES_FALLBACK_ENABLED);
+const LOCAL_ANIME_FALLBACK_ENABLED = configEnabled(CONFIG.LOCAL_ANIME_FALLBACK_ENABLED);
 // Cada fonte tem teto de 25 s; a faixa prioritária inteira também tem janela total de 25 s.
-const IMDB_PRIORITY_PHASE_TIMEOUT_MS = 35000;
+const IMDB_PRIORITY_PHASE_TIMEOUT_MS = 25000;
 const IMDB_STREAM_TIMEOUT_MS = positiveEnvNumber(
   'IMDB_STREAM_TIMEOUT_MS',
   Number(CONFIG.IMDB_STREAM_TIMEOUT_MS) || 3_000_000,
@@ -2941,6 +3194,13 @@ function isAnimeMetadata(result = {}) {
   return explicitAnime || hasAnimeKeyword || hasJapaneseTitle;
 }
 
+function localMediaFallbackEnabled(type, result = {}) {
+  if (isAnimeMetadata(result)) return LOCAL_ANIME_FALLBACK_ENABLED;
+  if (type === 'movie') return LOCAL_MOVIE_FALLBACK_ENABLED;
+  if (type === 'series') return LOCAL_SERIES_FALLBACK_ENABLED;
+  return false;
+}
+
 function selectAnimeProviderTasks(tasks = []) {
   const sourceTasks = Array.isArray(tasks) ? tasks : [];
   return ANIME_PROVIDER_SEARCH_PRIORITY_IDS.flatMap((providerId) =>
@@ -3640,6 +3900,7 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
   let hostedFallbackReason = '';
   let hostedRemoteStreams = [];
   let localProviderTasks = null;
+  let hostedApiElapsedMs = 0;
   if (testOptions.useHostedApi === true) {
     const hostedSearch = testOptions.hostedProviderSearch || searchHostedProviders;
     const priority = isAnimeMetadata(tmdbResult)
@@ -3671,6 +3932,7 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
     } else {
       hostedFailure = { message: 'PROVIDERS_API_BASE não configurada', timeout: false };
     }
+    hostedApiElapsedMs = Number(hostedResult?.elapsedMs) || Date.now() - apiStartedAt;
     const remoteStreams = Array.isArray(hostedResult?.streams) ? hostedResult.streams : [];
     hostedRemoteStreams = remoteStreams;
     const failedBatches = Array.isArray(hostedResult?.failedBatches) ? hostedResult.failedBatches : [];
@@ -3739,23 +4001,40 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
     });
   }
 
+  if (!localMediaFallbackEnabled(type, tmdbResult)) {
+    sourceLog('local-provider-fallback-disabled', { id: imdb || tmdbId, type, anime: isAnimeMetadata(tmdbResult) });
+    return testOptions.returnOutcome
+      ? { streams: hostedRemoteStreams, outcomes: [], elapsedMs: 0, summary: { streams: hostedRemoteStreams.length } }
+      : hostedRemoteStreams;
+  }
+  if (testOptions.deferLocalFallback === true) {
+    sourceLog('local-provider-fallback-deferred', {
+      id: imdb || tmdbId, type, reason: hostedFallbackReason || 'priority-phase-pending',
+      elapsedMs: hostedApiElapsedMs, waitForCombinedPriorityResult: true
+    });
+    return testOptions.returnOutcome
+      ? { streams: hostedRemoteStreams, outcomes: [], elapsedMs: hostedApiElapsedMs, summary: { streams: hostedRemoteStreams.length, localFallbackDeferred: true } }
+      : hostedRemoteStreams;
+  }
+  const localBudgetMs = Math.max(1, Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, Number(budgetMs) || LOCAL_MEDIA_SEARCH_TIMEOUT_MS));
+  const localDeadlineAt = Date.now() + localBudgetMs;
   const tasks = localProviderTasks || (Array.isArray(testOptions.sourceTasks)
     ? testOptions.sourceTasks
     : buildProviderSourceTasks({ type, imdbId, tmdbResult, idMatch }));
-  const queueRunner = testOptions.parallel ? runSourceQueueParallel : runSourceQueueSerial;
+  const queueRunner = runSourceQueueParallel;
   const result = await queueRunner(
     tasks,
     (source, sourceSignal) => source.run(source, sourceSignal),
     {
       id: imdb || tmdbId,
       type,
-      sourceTimeoutMs: Math.min(25000, DIRECT_PROVIDER_API_TIMEOUT_MS, PROVIDER_SOURCE_TIMEOUT_MS),
-      totalBudgetMs: budgetMs,
-      deadlineAt: testOptions.deadlineAt,
+      sourceTimeoutMs: Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, DIRECT_PROVIDER_API_TIMEOUT_MS, PROVIDER_SOURCE_TIMEOUT_MS),
+      totalBudgetMs: localBudgetMs,
+      deadlineAt: localDeadlineAt,
       eventName: 'provider-source-result',
       signal,
       priorityCount: tasks.filter((task) => PROVIDER_SEARCH_PRIORITY_IDS.includes(String(task.providerId || '').toLowerCase())).length,
-      priorityBudgetMs: Number(testOptions.priorityBudgetMs ?? IMDB_PRIORITY_PHASE_TIMEOUT_MS),
+      priorityBudgetMs: Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, Number(testOptions.priorityBudgetMs ?? LOCAL_MEDIA_SEARCH_TIMEOUT_MS)),
       continuePriorityOnMatch: true,
       stopOnMatch: true
     }
@@ -5338,6 +5617,7 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
   if (!result || !['movie', 'series'].includes(type)) return [];
   let hostedFallbackReason = '';
   let hostedRemoteStreams = [];
+  let hostedApiElapsedMs = 0;
   if (testOptions.useHostedApi === true) {
     const apiStartedAt = Date.now();
     const hostedSearch = testOptions.hostedXtreamSearch || searchHostedXtream;
@@ -5351,7 +5631,7 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
     let hostedFailure = null;
     if (XTREAM_API_BASE) {
       try {
-        hostedResult = await hostedSearch(type, id, result, String(id).match(/^tt\d+(?::(\d+):(\d+))?$/i), testOptions.signal || null, Math.min(35000, budgetMs));
+        hostedResult = await hostedSearch(type, id, result, String(id).match(/^tt\d+(?::(\d+):(\d+))?$/i), testOptions.signal || null, Math.min(25000, budgetMs));
       } catch (error) {
         hostedFailure = {
           message: String(error?.message || error).slice(0, 180),
@@ -5364,6 +5644,7 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
     } else {
       hostedFailure = { message: 'XTREAM_API_BASE não configurada', timeout: false };
     }
+    hostedApiElapsedMs = Number(hostedResult?.elapsedMs) || Date.now() - apiStartedAt;
     const remote = Array.isArray(hostedResult?.streams) ? hostedResult.streams : [];
     hostedRemoteStreams = remote;
     const failedSources = Array.isArray(hostedResult?.failedSources) ? hostedResult.failedSources : [];
@@ -5421,6 +5702,21 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
       localSourceIds: sourcesForFallback.map((source) => String(source.id || source.sourceName || 'unknown'))
     });
   }
+  if (!localMediaFallbackEnabled(type, result)) {
+    sourceLog('local-xtream-fallback-disabled', { id: String(id), type, anime: isAnimeMetadata(result) });
+    return testOptions.returnOutcome
+      ? { streams: hostedRemoteStreams, outcomes: [], elapsedMs: 0, summary: { streams: hostedRemoteStreams.length } }
+      : hostedRemoteStreams;
+  }
+  if (testOptions.deferLocalFallback === true) {
+    sourceLog('local-xtream-fallback-deferred', {
+      id: String(id), type, reason: hostedFallbackReason || 'priority-phase-pending',
+      elapsedMs: hostedApiElapsedMs, waitForCombinedPriorityResult: true
+    });
+    return testOptions.returnOutcome
+      ? { streams: hostedRemoteStreams, outcomes: [], elapsedMs: hostedApiElapsedMs, summary: { streams: hostedRemoteStreams.length, localFallbackDeferred: true } }
+      : hostedRemoteStreams;
+  }
   const candidateXtreamSources = testOptions.sources || XTREAM_SOURCES;
   const sourcesToSearch = testOptions.useHostedApi === true
     ? selectPriorityXtreamSources(candidateXtreamSources)
@@ -5440,12 +5736,13 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
     const aliases = itemVariants.map((name) => name.replace(/\s+\d+$/, '').trim()).filter(Boolean);
     return candidateNames.some((name) => aliases.includes(name));
   };
-  const totalBudgetMs = Math.min(IMDB_STREAM_TIMEOUT_MS, Math.max(1, Number(budgetMs) || IMDB_STREAM_TIMEOUT_MS));
+  const totalBudgetMs = Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, IMDB_STREAM_TIMEOUT_MS, Math.max(1, Number(budgetMs) || LOCAL_MEDIA_SEARCH_TIMEOUT_MS));
+  const localDeadlineAt = Date.now() + totalBudgetMs;
   const alternativeNamesPromise = Array.isArray(testOptions.alternativeTitleVariants)
     ? Promise.resolve(testOptions.alternativeTitleVariants)
     : withTimeout(tmdbAlternativeTitleVariants(type, result), Math.min(2000, totalBudgetMs), []);
 
-  const queueRunner = testOptions.parallel ? runSourceQueueParallel : runSourceQueueSerial;
+  const queueRunner = runSourceQueueParallel;
   const search = await queueRunner(
     sourcesToSearch,
     async (source, signal) => {
@@ -5510,13 +5807,13 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
     {
       id: String(id),
       type,
-      sourceTimeoutMs: Math.min(25000, XTREAM_IMDB_TIMEOUT_MS),
+      sourceTimeoutMs: Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, XTREAM_IMDB_TIMEOUT_MS),
       totalBudgetMs,
-      deadlineAt: testOptions.deadlineAt,
+      deadlineAt: localDeadlineAt,
       eventName: 'xtream-source-result',
       signal: testOptions.signal,
       priorityCount: sourcesToSearch.filter((source) => XTREAM_SEARCH_PRIORITY_IDS.includes(String(source?.id || '').toLowerCase())).length,
-      priorityBudgetMs: Number(testOptions.priorityBudgetMs ?? IMDB_PRIORITY_PHASE_TIMEOUT_MS),
+      priorityBudgetMs: Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, Number(testOptions.priorityBudgetMs ?? LOCAL_MEDIA_SEARCH_TIMEOUT_MS)),
       continuePriorityOnMatch: true,
       stopOnMatch: true
     }
@@ -7933,10 +8230,10 @@ builder.defineStreamHandler(
         // especializados; Xtream fica fora dessa busca. Demais títulos seguem a regra normal.
         const sourcePlan = buildImdbSourcePlan({ result, providerTasks: allProviderTasks, xtreamSources: XTREAM_SOURCES });
         const providerPriorityTasks = sourcePlan.providerTasks;
-        const providerFallbackTasks = [];
+        const providerFallbackTasks = providerPriorityTasks;
         const xtreamPrioritySources = sourcePlan.xtreamSources
           .map((source, index) => ({ ...source, priorityIndex: index }));
-        const xtreamFallbackSources = [];
+        const xtreamFallbackSources = xtreamPrioritySources;
         const priorityStartedAt = Date.now();
         const priorityDeadlineAt = priorityStartedAt + Math.max(0, Math.min(IMDB_PRIORITY_PHASE_TIMEOUT_MS, providerBudgetMs));
         const priorityBudgetMs = Math.max(0, priorityDeadlineAt - priorityStartedAt);
@@ -7953,6 +8250,7 @@ builder.defineStreamHandler(
                   bypassCache: true,
                   suppressSummary: true,
                   returnOutcome: true,
+                  deferLocalFallback: true,
                   deadlineAt: priorityDeadlineAt,
                   sourcesAvailable: providerPriorityTasks.length
                 })
@@ -7964,6 +8262,7 @@ builder.defineStreamHandler(
                   parallel: true,
                   suppressSummary: true,
                   returnOutcome: true,
+                  deferLocalFallback: true,
                   deadlineAt: priorityDeadlineAt,
                   sourcesAvailable: xtreamPrioritySources.length
                 })
@@ -8033,33 +8332,32 @@ builder.defineStreamHandler(
           parallel: true
         });
 
-        if (!priorityHasMedia && result && tmdbResultTitle(result)) {
-          const fallbackProviderBudgetMs = providerBudgetRemainingMs();
-          if (providerFallbackTasks.length && fallbackProviderBudgetMs > 0) {
-            try {
-              providerApiStreams = await _getDirectProviderApiStreams(
-                type, id, result, idMatch, null, fallbackProviderBudgetMs,
-                { sourceTasks: providerFallbackTasks, bypassCache: true, sourcesAvailable: providerFallbackTasks.length }
-              );
-            } catch (error) {
-              sourceLog('provider-fallback-error', { id: requestSourceId, message: error.message });
-            }
+        if (!priorityHasMedia && result && tmdbResultTitle(result)
+          && localMediaFallbackEnabled(type, result)
+          && (providerFallbackTasks.length || xtreamFallbackSources.length)) {
+          const priorityWaitMs = Math.max(0, priorityDeadlineAt - Date.now());
+          if (priorityWaitMs > 0) {
+            sourceLog('local-fallback-waiting-for-priority-deadline', {
+              id: requestSourceId, waitMs: priorityWaitMs, deadlineMs: IMDB_PRIORITY_PHASE_TIMEOUT_MS
+            });
+            await new Promise((resolve) => setTimeout(resolve, priorityWaitMs));
           }
-          if (shouldSearchXtreamAfterProviders(providerApiStreams) && !xtreamEntries.length && xtreamFallbackSources.length) {
-            const fallbackXtreamBudgetMs = providerBudgetRemainingMs();
-            if (fallbackXtreamBudgetMs > 0) {
-              try {
-                xtreamEntries = await findXtreamEntriesForImdb(type, id, result, fallbackXtreamBudgetMs, {
-                  sources: xtreamFallbackSources,
-                  sourcesAvailable: xtreamFallbackSources.length
-                });
-              } catch (error) {
-                sourceLog('xtream-fallback-error', { id: requestSourceId, message: error.message });
-              }
-            }
-          } else if (providerApiStreams.length) {
-            logDeferred(xtreamFallbackSources, 'xtream-source-result', 'mídia encontrada no fallback provider');
-          }
+          const localFallback = await runLocalFallbackWindows({
+            id: requestSourceId, type, remainingBudget: providerBudgetRemainingMs,
+            providerTasks: providerFallbackTasks.length, xtreamSources: xtreamFallbackSources.length,
+            providerSearch: providerFallbackTasks.length
+              ? (budgetMs) => _getDirectProviderApiStreams(type, id, result, idMatch, null, budgetMs, {
+                sourceTasks: providerFallbackTasks, bypassCache: true, sourcesAvailable: providerFallbackTasks.length
+              })
+              : null,
+            xtreamSearch: xtreamFallbackSources.length
+              ? (budgetMs) => findXtreamEntriesForImdb(type, id, result, budgetMs, {
+                sources: xtreamFallbackSources, sourcesAvailable: xtreamFallbackSources.length
+              })
+              : null
+          });
+          providerApiStreams = localFallback.providerStreams;
+          xtreamEntries = localFallback.xtreamStreams;
         }
 
         const directStreamsFound = providerApiStreams.length + xtreamEntries.length > 0;
@@ -8773,6 +9071,8 @@ module.exports._test = {
     loadPlaylistToDisk,
     sourceTimeouts: Object.freeze({
       searchTotalMs: IMDB_STREAM_TIMEOUT_MS,
+      localMediaSearchMs: LOCAL_MEDIA_SEARCH_TIMEOUT_MS,
+      embedTvApiMs: LiveTv._test.embedTvApiTimeoutMs,
       xtreamPerSourceMs: XTREAM_IMDB_TIMEOUT_MS,
       providerPerSourceMs: PROVIDER_SOURCE_TIMEOUT_MS,
       directProviderPerSourceMs: DIRECT_PROVIDER_API_TIMEOUT_MS,
@@ -8829,12 +9129,15 @@ module.exports._test = {
     selectPriorityXtreamSources,
     ANIME_PROVIDER_SEARCH_PRIORITY_IDS,
     isAnimeMetadata,
+    localMediaFallbackEnabled,
+    localFallbackSettings: Object.freeze({ movie: LOCAL_MOVIE_FALLBACK_ENABLED, series: LOCAL_SERIES_FALLBACK_ENABLED, anime: LOCAL_ANIME_FALLBACK_ENABLED }),
     selectAnimeProviderTasks,
     selectAnimeSearchProviderTasks,
     buildImdbSourcePlan,
     runSourceQueueSerial,
     runSourceQueueParallel,
     runPrioritySearchesInParallel,
+    runLocalFallbackWindows,
     parseDeclaredMediaSources,
     titleVariants,
     findM3uMatchesForTmdb,
