@@ -3107,7 +3107,7 @@ function normalizeProviderStream(stream, providerId) {
 const PROVIDER_SEARCH_PRIORITY_IDS = Object.freeze(
   Array.isArray(CONFIG.PROVIDER_SEARCH_PRIORITY) && CONFIG.PROVIDER_SEARCH_PRIORITY.length
     ? [...new Set(CONFIG.PROVIDER_SEARCH_PRIORITY.map((id) => String(id).trim().toLowerCase()).filter(Boolean))]
-    : ['cineveo', 'redecanais', 'redecanais-deals', 'brflix', 'vizer', 'megaembed', 'embedmovies', 'playerflix', 'myembed', 'fshd', 'pomfy', 'rivo', 'vaqueirofilmes', 'framextv']
+    : ['embedmovies', 'playerflix', 'fshd', 'cineveo', 'redecanais', 'redecanais-deals', 'brflix', 'vizer', 'megaembed', 'myembed', 'pomfy', 'rivo', 'vaqueirofilmes', 'framextv']
 );
 const XTREAM_SEARCH_PRIORITY_IDS = Object.freeze(
   Array.isArray(CONFIG.XTREAM_SEARCH_PRIORITY) && CONFIG.XTREAM_SEARCH_PRIORITY.length
@@ -3153,8 +3153,8 @@ function selectPriorityXtreamSources(sources = XTREAM_SOURCES) {
 const ANIME_PROVIDER_SEARCH_PRIORITY_IDS = Object.freeze([
   'animefire', 'animeq', 'animescloud', 'animesdigital', 'animesdrive',
   'animesfhd', 'animeshd', 'animesonlineblue', 'animesonlinecloud',
-  'animezey', 'berryanimes', 'otakulogia', 'oxeanimes', 'superanimes', 'topanimes',
-  'anibunker', 'anistream', 'anizone', 'anizero', 'animy', 'anitube', 'uniquestream'
+  'animezey', 'otakulogia', 'oxeanimes', 'superanimes', 'topanimes',
+  'anibunker', 'anizone', 'anizero', 'animy', 'anitube', 'uniquestream'
 ]);
 
 function isAnimeMetadata(result = {}) {
@@ -3833,11 +3833,18 @@ async function searchHostedProviders({ tmdbId, mediaType, season, episode, provi
         ...(Array.isArray(payload?.results) ? payload.results.flatMap((result) => Array.isArray(result?.streams) ? result.streams : []) : []),
         ...(Array.isArray(payload?.streams) ? payload.streams : [])
       ];
+      const providerFailures = (Array.isArray(payload?.results) ? payload.results : [])
+        .filter((result) => result && result.ok === false)
+        .map((result) => ({
+          id: String(result.id || result.provider?.id || 'unknown').toLowerCase(),
+          error: String(result.error || 'provider_error').slice(0, 100)
+        }));
       batchResults.push({
         batch, streams, elapsedMs: Date.now() - batchStartedAt,
-        failedSources: Array.isArray(payload?.failedSources) ? payload.failedSources : [],
-        failedSourceDetails: Array.isArray(payload?.failedSourceDetails) ? payload.failedSourceDetails : [],
-        partial: Boolean(payload?.partial)
+        failedSources: [...(Array.isArray(payload?.failedSources) ? payload.failedSources : []), ...providerFailures.map((failure) => failure.id)],
+        failedSourceDetails: [...(Array.isArray(payload?.failedSourceDetails) ? payload.failedSourceDetails : []), ...providerFailures],
+        providerFailures,
+        partial: Boolean(payload?.partial) || providerFailures.length > 0
       });
     } catch (error) {
       const failure = {
@@ -3853,6 +3860,8 @@ async function searchHostedProviders({ tmdbId, mediaType, season, episode, provi
       sourceLog('hosted-provider-api-batch-error', failure);
       batchResults.push({ batch, streams: [], elapsedMs: failure.elapsedMs, error: failure });
     } finally { request.close(); }
+    // Um resultado útil no lote prioritário é suficiente; não gastar o restante do prazo em lotes inferiores.
+    if (batchResults[batchResults.length - 1]?.streams?.length) break;
   }
   const unattemptedBatches = batches.slice(batchResults.length);
   const streams = batchResults.flatMap((result) => result.streams).map((stream) => {
@@ -3878,7 +3887,8 @@ async function searchHostedProviders({ tmdbId, mediaType, season, episode, provi
     failedBatches: batchResults.filter((result) => result.error).map((result) => result.error),
     failedSources: batchResults.flatMap((result) => result.failedSources || []),
     failedSourceDetails: batchResults.flatMap((result) => result.failedSourceDetails || []),
-    partial: batchResults.some((result) => result.partial),
+    failedProviderResults: batchResults.flatMap((result) => result.providerFailures || []),
+    partial: batchResults.some((result) => result.partial) || unattemptedBatches.length > 0,
     elapsedMs: Date.now() - startedAt
   };
 }
@@ -3901,6 +3911,7 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
   let hostedRemoteStreams = [];
   let localProviderTasks = null;
   let hostedApiElapsedMs = 0;
+  let hostedApiSummary = {};
   if (testOptions.useHostedApi === true) {
     const hostedSearch = testOptions.hostedProviderSearch || searchHostedProviders;
     const priority = isAnimeMetadata(tmdbResult)
@@ -3945,6 +3956,16 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
     ].filter(Boolean));
     const requestedBatches = Number(hostedResult?.requestedBatches) || 0;
     const unattemptedBatches = Number(hostedResult?.unattemptedBatches) || 0;
+    hostedApiSummary = {
+      requestedBatches,
+      completedBatches: Number(hostedResult?.completedBatches) || 0,
+      unattemptedBatches,
+      successfulBatches: Number(hostedResult?.successfulBatches) || 0,
+      failedBatches: failedBatches.length,
+      failedProviderResults: Array.isArray(hostedResult?.failedProviderResults) ? hostedResult.failedProviderResults : [],
+      partial: Boolean(hostedResult?.partial),
+      streams: remoteStreams.length
+    };
     const allPrioritySourcesFailed = !remoteStreams.length && (
       Boolean(hostedFailure)
       || (priority.length > 0 && priority.every((id) => failedProviderIds.has(String(id).toLowerCase())))
@@ -3959,9 +3980,11 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
       requestedBatches,
       completedBatches: Number(hostedResult?.completedBatches) || 0,
       unattemptedBatches,
+      unattemptedProviderIds: Array.isArray(hostedResult?.unattemptedProviderIds) ? hostedResult.unattemptedProviderIds : [],
       successfulBatches: Number(hostedResult?.successfulBatches) || 0,
       failedBatches: failedBatches.length,
       failures: failedBatches,
+      failedProviderResults: Array.isArray(hostedResult?.failedProviderResults) ? hostedResult.failedProviderResults : [],
       failedSources,
       failedSourceDetails,
       partial: Boolean(hostedResult?.partial),
@@ -4004,7 +4027,7 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
   if (!localMediaFallbackEnabled(type, tmdbResult)) {
     sourceLog('local-provider-fallback-disabled', { id: imdb || tmdbId, type, anime: isAnimeMetadata(tmdbResult) });
     return testOptions.returnOutcome
-      ? { streams: hostedRemoteStreams, outcomes: [], elapsedMs: 0, summary: { streams: hostedRemoteStreams.length } }
+      ? { streams: hostedRemoteStreams, outcomes: [], elapsedMs: hostedApiElapsedMs, summary: { ...hostedApiSummary, streams: hostedRemoteStreams.length, localFallbackDisabled: true, localFallbackDeferred: testOptions.deferLocalFallback === true, elapsedMs: hostedApiElapsedMs } }
       : hostedRemoteStreams;
   }
   if (testOptions.deferLocalFallback === true) {
@@ -4013,7 +4036,7 @@ async function _getDirectProviderApiStreams(type, imdbId, tmdbResult, idMatch, s
       elapsedMs: hostedApiElapsedMs, waitForCombinedPriorityResult: true
     });
     return testOptions.returnOutcome
-      ? { streams: hostedRemoteStreams, outcomes: [], elapsedMs: hostedApiElapsedMs, summary: { streams: hostedRemoteStreams.length, localFallbackDeferred: true } }
+      ? { streams: hostedRemoteStreams, outcomes: [], elapsedMs: hostedApiElapsedMs, summary: { ...hostedApiSummary, elapsedMs: hostedApiElapsedMs, localFallbackDeferred: true } }
       : hostedRemoteStreams;
   }
   const localBudgetMs = Math.max(1, Math.min(LOCAL_MEDIA_SEARCH_TIMEOUT_MS, Number(budgetMs) || LOCAL_MEDIA_SEARCH_TIMEOUT_MS));
@@ -4333,6 +4356,12 @@ function sourceLog(event, details = {}) {
     return;
   }
   if (event === 'provider-search-complete') {
+    if (safeDetails.localFallbackDeferred) {
+      const failures = Array.isArray(safeDetails.failedProviderResults) ? safeDetails.failedProviderResults : [];
+      const timeoutCount = failures.filter((failure) => /timeout/i.test(String(failure.error || ''))).length;
+      console.log(`[FONTES/PROVEDORES] API hospedada: lotes ${safeDetails.completedBatches || 0}/${safeDetails.requestedBatches || 0} | streams=${safeDetails.streams || 0} | falhas=${failures.length} | timeouts=${timeoutCount} | não iniciados=${safeDetails.unattemptedBatches || 0} | ${safeDetails.elapsedMs || 0}ms`);
+      return;
+    }
     for (const line of formatSourceStatusSummary('PROVEDORES', safeDetails.sources)) console.log(line);
     return;
   }
@@ -5705,7 +5734,7 @@ async function findXtreamEntriesForImdb(type, id, result, budgetMs = IMDB_STREAM
   if (!localMediaFallbackEnabled(type, result)) {
     sourceLog('local-xtream-fallback-disabled', { id: String(id), type, anime: isAnimeMetadata(result) });
     return testOptions.returnOutcome
-      ? { streams: hostedRemoteStreams, outcomes: [], elapsedMs: 0, summary: { streams: hostedRemoteStreams.length } }
+      ? { streams: hostedRemoteStreams, outcomes: [], elapsedMs: hostedApiElapsedMs, summary: { streams: hostedRemoteStreams.length, localFallbackDisabled: true, localFallbackDeferred: testOptions.deferLocalFallback === true, elapsedMs: hostedApiElapsedMs } }
       : hostedRemoteStreams;
   }
   if (testOptions.deferLocalFallback === true) {
